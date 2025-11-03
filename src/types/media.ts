@@ -1,46 +1,51 @@
-export type MediaFile = {
-  id: string;
-  name: string;
-  path: string;
-  handle: FileSystemFileHandle;
-  size: number;
-  type: string;
-};
+export type MediaKind = 'photo' | 'video' | 'unknown';
 
-export type MediaMetadata = {
-  createdAt?: Date;
-  resolution?: { width: number; height: number };
-};
+export interface MediaMeta {
+  kind: MediaKind;
+  takenDate?: string;
+  year: number;
+  month: number;
+  extension: string;
+}
 
-export type MediaHashes = {
+export interface MediaHashes {
   sha256?: string;
   pHash?: string;
-};
+  vSig?: string[];
+}
 
-export type EnrichedMediaFile = MediaFile & {
-  metadata: MediaMetadata;
+export interface MediaFileRef {
+  id: string;
+  name: string;
+  size: number;
+  lastModified: number;
+  srcPath: string;
+  ref: unknown;
+}
+
+export interface MediaFile {
+  ref: MediaFileRef;
+  meta: MediaMeta;
   hashes: MediaHashes;
-};
+}
 
-export type PlanAction = {
-  type: 'copy' | 'move' | 'skip';
-  source: string;
-  destination: string;
-  reason?: 'collision' | 'duplicate';
-};
+export type Action = 'copy' | 'move';
 
-export type OrganizationPlan = {
-  actions: PlanAction[];
-  stats: {
-    totalFiles: number;
-    toCopy: number;
-    toMove: number;
-    skipped: number;
+export interface PlanItem {
+  file: MediaFile;
+  reason: 'unique' | 'duplicate-exact' | 'duplicate-near';
+  destRelPath: string;
+  action: Action;
+  status: 'pending' | 'success' | 'error';
+  error?: string;
+}
+
+export interface PlanSummary {
+  totals: {
+    files: number;
+    photos: number;
+    videos: number;
+    exactDup: number;
+    nearDup: number;
   };
-};
-
-export type OrganizeOptions = {
-  pattern: string;
-  detectDuplicates: boolean;
-  duplicateAction: 'skip' | 'move';
-};
+}

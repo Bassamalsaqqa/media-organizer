@@ -1,93 +1,61 @@
-import { IFsClient } from '..';
+import type { IFsClient } from '..';
 
-// Placeholder implementation of the File System Access API adapter.
-// This is a client-side only implementation.
-export class BrowserFsClient implements IFsClient {
-  async pickDirectory(options: { mode: 'read' | 'readwrite' } = { mode: 'read' }): Promise<FileSystemDirectoryHandle | null> {
-    try {
-      return await window.showDirectoryPicker(options);
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') {
-        return null;
-      }
-      console.error('Error picking directory:', e);
+const pickDirectory: IFsClient['pickDirectory'] = async (options = { mode: 'read' }) => {
+  try {
+    return await window.showDirectoryPicker(options);
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
       return null;
     }
+    console.error('Error picking directory:', e);
+    return null;
   }
+};
 
-  async *walkRecursive(
-    directoryHandle: FileSystemDirectoryHandle
-  ): AsyncGenerator<FileSystemFileHandle, void, void> {
-    for await (const entry of directoryHandle.values()) {
-      if (entry.kind === 'file') {
-        yield entry;
-      } else if (entry.kind === 'directory') {
-        yield* this.walkRecursive(entry);
-      }
+const walkRecursive: IFsClient['walkRecursive'] = async function* (directoryHandle) {
+  for await (const entry of directoryHandle.values()) {
+    if (entry.kind === 'file') {
+      yield entry;
+    } else if (entry.kind === 'directory') {
+      yield* walkRecursive(entry);
     }
   }
+};
 
-  async readChunk(
-    fileHandle: FileSystemFileHandle,
-    { start, size }: { start: number; size: number }
-  ): Promise<ArrayBuffer> {
-    const file = await fileHandle.getFile();
-    const slice = file.slice(start, start + size);
-    return slice.arrayBuffer();
+const readChunk: IFsClient['readChunk'] = async (fileHandle, { start, size }) => {
+  const file = await fileHandle.getFile();
+  const slice = file.slice(start, start + size);
+  return slice.arrayBuffer();
+};
+
+const ensureDir: IFsClient['ensureDir'] = async (base, path) => {
+  let current = base;
+  const parts = path.split('/').filter(p => p.length > 0);
+  for (const part of parts) {
+    current = await current.getDirectoryHandle(part, { create: true });
   }
+  return current;
+};
 
-  async ensureDir(
-    base: FileSystemDirectoryHandle,
-    path: string
-  ): Promise<FileSystemDirectoryHandle> {
-    let current = base;
-    const parts = path.split('/').filter(p => p.length > 0);
-    for (const part of parts) {
-      current = await current.getDirectoryHandle(part, { create: true });
-    }
-    return current;
-  }
+const copy: IFsClient['copy'] = async (sourceHandle, targetDirHandle, newName) => {
+  const newFileHandle = await targetDirHandle.getFileHandle(newName || sourceHandle.name, { create: true });
+  const writable = await newFileHandle.createWritable();
+  const file = await sourceHandle.getFile();
+  await writable.write(file);
+  await writable.close();
+};
 
-  async copy(
-    sourceHandle: FileSystemFileHandle,
-    targetDirHandle: FileSystemDirectoryHandle,
-    newName?: string
-  ): Promise<void> {
-    const newFileHandle = await targetDirHandle.getFileHandle(newName || sourceHandle.name, { create: true });
-    const writable = await newFileHandle.createWritable();
-    const file = await sourceHandle.getFile();
-    await writable.write(file);
-    await writable.close();
-  }
+const move: IFsClient['move'] = async (sourceHandle, sourceDirHandle, targetDirHandle, newName) => {
+  await copy(sourceHandle, targetDirHandle, newName);
+  // Note: This is not a true move/rename. It's a copy then delete.
+  await sourceDirHandle.removeEntry(sourceHandle.name);
+};
 
-  async move(
-    sourceHandle: FileSystemFileHandle,
-    sourceDirHandle: FileSystemDirectoryHandle,
-    targetDirHandle: FileSystemDirectoryHandle,
-    newName?: string
-  ): Promise<void> {
-    // This is a simplified move. A proper implementation might need to handle cases across different volumes.
-    await this.copy(sourceHandle, targetDirHandle, newName);
-    await sourceDirHandle.removeEntry(sourceHandle.name);
-  }
-}
-
-// Singleton instance for client-side usage
-let fsClient: IFsClient | null = null;
-export const getFsClient = (): IFsClient => {
-    if (typeof window === 'undefined') {
-        // Return a mock/dummy implementation for SSR if needed
-        return {
-            pickDirectory: async () => null,
-            walkRecursive: async function* () {},
-            readChunk: async () => new ArrayBuffer(0),
-            ensureDir: async (base) => base,
-            copy: async () => {},
-            move: async () => {},
-        };
-    }
-    if (!fsClient) {
-        fsClient = new BrowserFsClient();
-    }
-    return fsClient;
+export const browserFsAdapter: IFsClient = {
+  pickDirectory,
+  walkRecursive,
+  readChunk,
+  ensureDir,
+  copy,
+  move,
 };

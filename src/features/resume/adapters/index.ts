@@ -1,1 +1,1 @@
-export * from './indexeddb-adapter';
+export {};

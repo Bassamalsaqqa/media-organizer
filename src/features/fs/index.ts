@@ -1,3 +1,5 @@
+import { browserFsAdapter } from './adapters/browser-fs-adapter';
+
 export interface IFsClient {
   pickDirectory(options?: {
     mode: 'read' | 'readwrite';
@@ -24,4 +26,8 @@ export interface IFsClient {
     targetDirHandle: FileSystemDirectoryHandle,
     newName?: string
   ): Promise<void>;
+}
+
+export function createFsClient(): IFsClient {
+  return browserFsAdapter;
 }
