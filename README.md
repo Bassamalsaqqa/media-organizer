@@ -1,5 +1,10 @@
-# Firebase Studio
+# Media Organizer
 
-This is a NextJS starter in Firebase Studio.
+This is a local-first media organizer application.
 
-To get started, take a look at src/app/page.tsx.
+To get started, run the app and open it in your browser.
+
+---
+
+Built by [Bassam Alsaqqa](https://github.com/Bassamalsaqqa)
+- [LinkedIn](https://www.linkedin.com/in/bassamalsaqqa/)
