@@ -1,6 +1,6 @@
 import { IResumeApi } from '..';
 
-const DB_NAME = 'MediaMaestro';
+const DB_NAME = 'MediaOrganizer';
 const STORE_NAME = 'draft';
 const DRAFT_KEY = 'current-draft';
 
