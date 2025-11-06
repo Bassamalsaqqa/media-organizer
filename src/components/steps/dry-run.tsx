@@ -15,17 +15,28 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAppStore } from '@/store/app-store';
 import { ArrowLeft, ArrowRight, Download } from 'lucide-react';
 import { exportCsv, exportJson } from '@/features/report';
+import type { PlanItem } from '@/types/media';
+import { Planner } from '@/features/planner';
 
 export default function DryRun() {
-  const { plan, setCurrentStep } = useAppStore();
+  const { plan, setCurrentStep, options, setPlan } = useAppStore();
+
+  const handleRetry = async (item: PlanItem) => {
+    const planner = new Planner(options);
+    const newPlan = await planner.reprocessFile(item);
+    setPlan(newPlan);
+  };
 
   if (!plan) {
     return (
       <Card className="w-full max-w-4xl mx-auto shadow-lg">
         <CardHeader>
-          <CardTitle>No Plan Generated</CardTitle>
-          <CardDescription>Something went wrong. Please go back and try again.</CardDescription>
+          <CardTitle>Dry-Run Report</CardTitle>
+          <CardDescription>No plan has been generated yet.</CardDescription>
         </CardHeader>
+        <CardContent>
+          <p>Go back to the options step and generate a plan first.</p>
+        </CardContent>
         <CardFooter>
           <Button variant="outline" onClick={() => setCurrentStep(1)}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Options
@@ -35,65 +46,82 @@ export default function DryRun() {
     );
   }
 
-  const handleExport = (format: 'json' | 'csv') => {
-    const content = format === 'json' ? exportJson(plan) : exportCsv(plan);
-    const blob = new Blob([content], { type: format === 'json' ? 'application/json' : 'text/csv' });
+  const handleExportJson = () => {
+    const json = exportJson(plan);
+    const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `media-maestro-plan.${format}`;
-    document.body.appendChild(a);
+    a.download = 'media-organizer-plan.json';
     a.click();
-    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
-  const getBadgeVariant = (type: string) => {
-    switch (type) {
-        case 'move': return 'default';
-        case 'copy': return 'secondary';
-        case 'skip': return 'outline';
-        default: return 'default';
-    }
-  }
+  const handleExportCsv = () => {
+    const csv = exportCsv(plan);
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'media-organizer-plan.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const summary = {
+    ok: plan.items.filter(item => item.status === 'success').length,
+    skipped: plan.items.filter(item => item.status === 'skipped').length,
+    errors: plan.items.filter(item => item.status === 'error').length,
+  };
 
   return (
-    <Card className="w-full max-w-5xl mx-auto shadow-lg">
+    <Card className="w-full max-w-4xl mx-auto shadow-lg">
       <CardHeader>
-        <CardTitle>Dry-Run Preview</CardTitle>
-        <CardDescription>
-          Review the changes that will be made. No files will be moved yet. Found {plan.stats.totalFiles} files.
-          ({plan.stats.toMove} to move, {plan.stats.toCopy} to copy, {plan.stats.skipped} to skip).
-        </CardDescription>
-        <div className="flex gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => handleExport('json')}>
-                <Download className="mr-2 h-4 w-4" /> Export JSON
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleExport('csv')}>
-                <Download className="mr-2 h-4 w-4" /> Export CSV
-            </Button>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>Dry-Run Report</CardTitle>
+            <CardDescription>
+              Scanned {plan.items.length} files: {summary.ok} OK, {summary.skipped} skipped, {summary.errors} errors.
+            </CardDescription>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleExportJson}><Download className="mr-2 h-4 w-4" /> JSON</Button>
+            <Button variant="outline" size="sm" onClick={handleExportCsv}><Download className="mr-2 h-4 w-4" /> CSV</Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-96 w-full rounded-md border">
+        <ScrollArea className="h-96">
           <Table>
-            <TableHeader className="sticky top-0 bg-muted/50">
+            <TableHeader>
               <TableRow>
-                <TableHead className="w-[100px]">Action</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead>Destination</TableHead>
-                <TableHead className="w-[120px]">Reason</TableHead>
+                <TableHead>Date (source)</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Error Code</TableHead>
+                <TableHead>Message</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {plan.actions.map((action, index) => (
+              {plan.items.map((item: PlanItem, index: number) => (
                 <TableRow key={index}>
+                  <TableCell><Badge variant={item.action === 'copy' ? 'secondary' : 'default'}>{item.action}</Badge></TableCell>
+                  <TableCell><Badge variant={item.status === 'success' ? 'default' : item.status === 'skipped' ? 'secondary' : 'destructive'}>{item.status}</Badge></TableCell>
+                  <TableCell className="font-code">{item.file.ref.srcPath}</TableCell>
+                  <TableCell className="font-code">{item.destRelPath}</TableCell>
+                  <TableCell>{item.file.meta.detectedDate?.date} ({item.file.meta.detectedDate?.source})</TableCell>
+                  <TableCell>{item.reason}</TableCell>
+                  <TableCell>{item.error?.code}</TableCell>
+                  <TableCell>{item.error?.message}</TableCell>
                   <TableCell>
-                    <Badge variant={getBadgeVariant(action.type)}>{action.type.toUpperCase()}</Badge>
+                    {item.status === 'error' && (
+                      <Button variant="outline" size="sm" onClick={() => handleRetry(item)}>Retry</Button>
+                    )}
                   </TableCell>
-                  <TableCell className="font-code text-xs truncate max-w-xs" title={action.source}>{action.source}</TableCell>
-                  <TableCell className="font-code text-xs truncate max-w-xs" title={action.destination}>{action.destination}</TableCell>
-                  <TableCell>{action.reason}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

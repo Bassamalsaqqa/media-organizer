@@ -1,55 +1,113 @@
+import { safeWrap, isSafeError } from '@/lib/errors';
+import * as logger from '@/features/logs';
 import type { IFsClient } from '..';
+import type { MediaFileRef, SafeError } from '@/types/media';
+import * as path from 'path-browserify';
 
-const pickDirectory: IFsClient['pickDirectory'] = async (options = { mode: 'read' }) => {
+async function pickDirectory(opts: { mode: 'read' | 'readwrite' }): Promise<FileSystemDirectoryHandle | null> {
   try {
-    return await window.showDirectoryPicker(options);
+    return await window.showDirectoryPicker(opts);
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') {
       return null;
     }
-    console.error('Error picking directory:', e);
-    return null;
+    throw e;
   }
-};
+}
 
-const walkRecursive: IFsClient['walkRecursive'] = async function* (directoryHandle) {
-  for await (const entry of directoryHandle.values()) {
+async function* walkRecursive(
+  root: FileSystemDirectoryHandle,
+  path = '',
+): AsyncGenerator<MediaFileRef | SafeError, void, unknown> {
+  for await (const entry of root.values()) {
+    const newPath = path ? `${path}/${entry.name}` : entry.name;
     if (entry.kind === 'file') {
-      yield entry;
+      const result = await safeWrap(
+        'FS_READ',
+        async () => {
+          const file = await entry.getFile();
+          return {
+            id: crypto.randomUUID(),
+            name: entry.name,
+            size: file.size,
+            lastModified: file.lastModified,
+            srcPath: newPath,
+            ref: entry,
+          };
+        },
+        { file: newPath },
+      );
+
+      if (isSafeError(result)) {
+        logger.error(result);
+        yield result;
+      } else {
+        yield result;
+      }
     } else if (entry.kind === 'directory') {
-      yield* walkRecursive(entry);
+      yield* walkRecursive(entry, newPath);
     }
   }
-};
+}
 
-const readChunk: IFsClient['readChunk'] = async (fileHandle, { start, size }) => {
-  const file = await fileHandle.getFile();
-  const slice = file.slice(start, start + size);
-  return slice.arrayBuffer();
-};
+async function readChunk(ref: MediaFileRef, start: number, end: number): Promise<ArrayBuffer> {
+  const handle = ref.ref as FileSystemFileHandle;
+  const file = await handle.getFile();
+  return file.slice(start, end).arrayBuffer();
+}
 
-const ensureDir: IFsClient['ensureDir'] = async (base, path) => {
-  let current = base;
-  const parts = path.split('/').filter(p => p.length > 0);
-  for (const part of parts) {
-    current = await current.getDirectoryHandle(part, { create: true });
+async function ensureDir(segments: string[], destRoot: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
+  let currentHandle = destRoot;
+  for (const segment of segments) {
+    if (segment === '') continue;
+    currentHandle = await currentHandle.getDirectoryHandle(segment, { create: true });
   }
-  return current;
-};
+  return currentHandle;
+}
 
-const copy: IFsClient['copy'] = async (sourceHandle, targetDirHandle, newName) => {
-  const newFileHandle = await targetDirHandle.getFileHandle(newName || sourceHandle.name, { create: true });
-  const writable = await newFileHandle.createWritable();
-  const file = await sourceHandle.getFile();
-  await writable.write(file);
-  await writable.close();
-};
+async function resolveFileNameCollision(desiredName: string, checkExists: (name: string) => Promise<boolean>): Promise<string> {
+  let finalName = desiredName;
+  let counter = 1;
+  const { name, ext } = path.parse(desiredName);
 
-const move: IFsClient['move'] = async (sourceHandle, sourceDirHandle, targetDirHandle, newName) => {
-  await copy(sourceHandle, targetDirHandle, newName);
-  // Note: This is not a true move/rename. It's a copy then delete.
-  await sourceDirHandle.removeEntry(sourceHandle.name);
-};
+  while (await checkExists(finalName)) {
+    finalName = `${name}_(${counter})${ext}`;
+    counter++;
+  }
+  return finalName;
+}
+
+async function copy(ref: MediaFileRef, destRoot: FileSystemDirectoryHandle, destRelPath: string): Promise<void | SafeError> {
+  return safeWrap(
+    'COPY',
+    async () => {
+      const handle = ref.ref as FileSystemFileHandle;
+      const file = await handle.getFile();
+
+      const destPathParts = destRelPath.split('/');
+      const fileName = destPathParts.pop()!;
+      const dirSegments = destPathParts;
+
+      const destDirHandle = await ensureDir(dirSegments, destRoot);
+
+      const finalFileName = await resolveFileNameCollision(fileName, async (nameToCheck) => {
+        try {
+          await destDirHandle.getFileHandle(nameToCheck, { create: false });
+          return true;
+        } catch (e: any) {
+          if (e.name === 'NotFoundError') return false;
+          throw e;
+        }
+      });
+
+      const destFileHandle = await destDirHandle.getFileHandle(finalFileName, { create: true });
+      const writable = await destFileHandle.createWritable({ keepExistingData: false });
+      await writable.write(file);
+      await writable.close();
+    },
+    { file: ref.srcPath },
+  );
+}
 
 export const browserFsAdapter: IFsClient = {
   pickDirectory,
@@ -57,5 +115,4 @@ export const browserFsAdapter: IFsClient = {
   readChunk,
   ensureDir,
   copy,
-  move,
 };

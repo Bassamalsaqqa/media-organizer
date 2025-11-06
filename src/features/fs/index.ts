@@ -1,33 +1,19 @@
 import { browserFsAdapter } from './adapters/browser-fs-adapter';
+import type { MediaFileRef, SafeError } from '@/types/media';
 
 export interface IFsClient {
-  pickDirectory(options?: {
-    mode: 'read' | 'readwrite';
-  }): Promise<FileSystemDirectoryHandle | null>;
-  walkRecursive(
-    directoryHandle: FileSystemDirectoryHandle
-  ): AsyncGenerator<FileSystemFileHandle, void, void>;
-  readChunk(
-    fileHandle: FileSystemFileHandle,
-    options: { start: number; size: number }
-  ): Promise<ArrayBuffer>;
-  ensureDir(
-    base: FileSystemDirectoryHandle,
-    path: string
-  ): Promise<FileSystemDirectoryHandle>;
-  copy(
-    sourceHandle: FileSystemFileHandle,
-    targetDirHandle: FileSystemDirectoryHandle,
-    newName?: string
-  ): Promise<void>;
-  move(
-    sourceHandle: FileSystemFileHandle,
-    sourceDirHandle: FileSystemDirectoryHandle,
-    targetDirHandle: FileSystemDirectoryHandle,
-    newName?: string
-  ): Promise<void>;
+  pickDirectory(opts: { mode: 'read' | 'readwrite' }): Promise<FileSystemDirectoryHandle | null>;
+  walkRecursive(root: FileSystemDirectoryHandle): AsyncGenerator<MediaFileRef | SafeError, void, unknown>;
+  readChunk(ref: MediaFileRef, start: number, end: number): Promise<ArrayBuffer>;
+  ensureDir(segments: string[], destRoot: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle>;
+  copy(ref: MediaFileRef, destRoot: FileSystemDirectoryHandle, destRelPath: string): Promise<void | SafeError>;
 }
 
 export function createFsClient(): IFsClient {
-  return browserFsAdapter;
+    if (typeof window === 'undefined') {
+        const { nodeFsAdapter } = require('./adapters/node-fs-adapter');
+        return nodeFsAdapter as any;
+    } else {
+        return browserFsAdapter;
+    }
 }

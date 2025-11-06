@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   description: APP_DESCRIPTION,
 };
 
+import { GlobalErrorHandler } from '@/components/error-handler';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -24,7 +26,7 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        {children}
+        <GlobalErrorHandler>{children}</GlobalErrorHandler>
         <Toaster />
       </body>
     </html>

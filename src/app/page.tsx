@@ -7,6 +7,8 @@ import DryRun from '@/components/steps/dry-run';
 import ExecuteProgress from '@/components/steps/execute-progress';
 import { useAppStore } from '@/store/app-store';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+
 const steps = [
   { name: 'Folders', component: SelectFolders },
   { name: 'Options', component: SetOptions },
@@ -20,7 +22,9 @@ export default function Home() {
 
   return (
     <MainLayout>
-      <CurrentStepComponent />
+      <ErrorBoundary>
+        <CurrentStepComponent />
+      </ErrorBoundary>
     </MainLayout>
   );
 }

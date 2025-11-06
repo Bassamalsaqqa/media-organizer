@@ -4,73 +4,84 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useAppStore } from '@/store/app-store';
-import { CheckCircle, Home } from 'lucide-react';
+import { CheckCircle, Home, Copy, Download, Play, Pause, XCircle } from 'lucide-react';
 import React, { useState, useRef, useEffect } from 'react';
-import { executePlan } from '@/features/execute';
-import { getFsClient } from '@/features/fs/adapters';
+import { Executor, ExecuteState, Progress as ExecutionProgress } from '@/features/execute';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-
-const fsClient = getFsClient();
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { exportJson } from '@/features/report';
+import { loadCheckpoint } from '@/features/resume/indexeddb';
 
 export default function ExecuteProgress() {
-  const { plan, options, progress, setProgress, addLog, logs, reset, setCurrentStep } = useAppStore();
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
+  const { plan, sourceHandle, destHandle, reset, setCurrentStep } = useAppStore();
+  const [executor, setExecutor] = useState<Executor | null>(null);
+  const [progress, setProgress] = useState<ExecutionProgress>({ current: 0, total: plan?.items.length || 0, bytesCopied: 0, errors: [] });
+  const [state, setState] = useState<ExecuteState>('idle');
   const { toast } = useToast();
-  const logContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (logContainerRef.current) {
-        logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-    }
-  }, [logs]);
-
-  const startExecution = async () => {
-    if (!plan) {
-      toast({
-        variant: "destructive",
-        title: "Execution Error",
-        description: "No plan available to execute.",
-      });
-      return;
-    }
-    setIsExecuting(true);
-    setIsComplete(false);
-    try {
-      await executePlan(fsClient, plan, options, (p) => {
+    if (plan && sourceHandle && destHandle) {
+      const onProgress = (p: ExecutionProgress) => {
         setProgress(p);
-        addLog(p.message);
+      };
+      const exec = new Executor(plan, sourceHandle, destHandle, onProgress);
+      setExecutor(exec);
+
+      // Check for checkpoint
+      loadCheckpoint(plan.summary.totals.files.toString()).then(checkpoint => {
+        if (checkpoint) {
+          toast({
+            title: 'Resume previous run?',
+            description: `Found a checkpoint with ${checkpoint.completedIds.length} completed files.`,
+            action: (
+              <Button onClick={() => executor?.resume()}>Resume</Button>
+            ),
+          });
+        }
       });
-      setIsComplete(true);
-    } catch(e) {
-      const errorMessage = e instanceof Error ? e.message : "An unknown error occurred.";
-      toast({
-        variant: "destructive",
-        title: "Execution Failed",
-        description: errorMessage,
-      });
-      addLog(`ERROR: ${errorMessage}`);
-    } finally {
-      setIsExecuting(false);
     }
+  }, [plan, sourceHandle, destHandle, toast]);
+
+  const handleStart = () => {
+    executor?.start();
+    setState('running');
   };
-  
+
+  const handlePause = () => {
+    executor?.pause();
+    setState('paused');
+  };
+
+  const handleResume = () => {
+    executor?.resume();
+    setState('running');
+  };
+
   const handleReset = () => {
     reset();
     setCurrentStep(0);
-  }
+  };
+
+  const handleDownloadPlan = () => {
+    if (!plan) return;
+    const json = exportJson(plan);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'media-organizer-plan.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyCliCommand = () => {
+    if (!sourceHandle || !destHandle) return;
+    const concurrency = Math.max(2, Math.min(navigator.hardwareConcurrency / 2, 8));
+    const cliCommand = `media-organizer-cli --plan "./media-organizer-plan.json" --execute --verify --resume --concurrency ${concurrency} --source-root "${sourceHandle.name}" --dest-root "${destHandle.name}"`;
+    navigator.clipboard.writeText(cliCommand);
+    toast({ title: 'CLI command copied to clipboard!' });
+  };
 
   const progressValue = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
 
@@ -79,59 +90,70 @@ export default function ExecuteProgress() {
       <CardHeader>
         <CardTitle>Execute Plan</CardTitle>
         <CardDescription>
-          This will move and organize your files. This action cannot be undone.
+          Run the organization plan in the browser or via the CLI.
+          <p className="text-sm text-yellow-500 mt-2">This tool never deletes source files. Review results and delete manually after confirming.</p>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!isComplete ? (
+        {state === 'finished' ? (
+          <div className="flex flex-col items-center justify-center text-center p-8 space-y-4">
+            <CheckCircle className="h-16 w-16 text-green-500" />
+            <h3 className="text-2xl font-semibold">Execution Complete!</h3>
+            <p className="text-muted-foreground">Your media has been organized.</p>
+          </div>
+        ) : (
           <>
             <div className="space-y-2">
-                <Progress value={progressValue} />
-                <p className="text-sm text-muted-foreground text-center font-code">
-                    {progress.message || 'Ready to start...'}
-                </p>
+              <Progress value={progressValue} />
+              <p className="text-sm text-muted-foreground text-center font-code">
+                {progress.current} / {progress.total} files copied
+              </p>
             </div>
-            <ScrollArea className="h-48 w-full rounded-md border" ref={logContainerRef}>
-                <div className="text-xs font-code space-y-1 p-2">
-                    {logs.map((log, i) => <p key={i} className="break-all">{log}</p>)}
-                </div>
+            <ScrollArea className="h-48 w-full rounded-md border">
+              <div className="text-xs font-code space-y-1 p-2">
+                {progress.errors.map((err, i) => <p key={i} className="break-all text-red-500">[{err.code}] {err.file}: {err.message}</p>)}
+              </div>
             </ScrollArea>
           </>
-        ) : (
-            <div className="flex flex-col items-center justify-center text-center p-8 space-y-4">
-                <CheckCircle className="h-16 w-16 text-green-500" />
-                <h3 className="text-2xl font-semibold">Execution Complete!</h3>
-                <p className="text-muted-foreground">Your media has been organized.</p>
-            </div>
         )}
+
+        <div className="flex justify-center gap-2">
+          {state === 'idle' && (
+            <Button onClick={handleStart}><Play className="mr-2 h-4 w-4" /> Run in Browser</Button>
+          )}
+          {state === 'running' && (
+            <Button onClick={handlePause} variant="outline"><Pause className="mr-2 h-4 w-4" /> Pause</Button>
+          )}
+          {state === 'paused' && (
+            <Button onClick={handleResume}><Play className="mr-2 h-4 w-4" /> Resume</Button>
+          )}
+        </div>
+
+        <div className="pt-4">
+            <h3 className="text-lg font-semibold text-center mb-2">Alternative: Run with CLI</h3>
+            <p className="text-sm text-muted-foreground text-center mb-4">
+              To run the CLI, navigate to the `media-organizer-cli` directory in your terminal.
+            </p>
+            <div className="w-full bg-gray-100 dark:bg-gray-800 p-4 rounded-md text-left font-code text-sm overflow-x-auto">
+              <pre><code>{`cd media-organizer-cli
+npm install
+npm run build
+node dist/execute-plan.js ^
+  --plan "./media-organizer-plan.json" ^
+  --execute --verify --resume --concurrency 4 ^
+  --source-root "${sourceHandle?.name || 'path/to/source'}" ^
+  --dest-root   "${destHandle?.name || 'path/to/dest'}"`}</code></pre>
+            </div>
+            <div className="flex gap-2 mt-2 justify-center">
+              <Button onClick={handleDownloadPlan} variant="outline"><Download className="mr-2 h-4 w-4" /> Download Plan</Button>
+              <Button onClick={handleCopyCliCommand} variant="outline"><Copy className="mr-2 h-4 w-4" /> Copy Command</Button>
+            </div>
+        </div>
       </CardContent>
       <CardFooter>
-        {isComplete ? (
-            <Button onClick={handleReset} className="mx-auto">
-                <Home className="mr-2 h-4 w-4" /> Start Over
-            </Button>
-        ) : (
-            <AlertDialog>
-                <AlertDialogTrigger asChild>
-                    <Button disabled={isExecuting} className="mx-auto">
-                        {isExecuting ? 'Executing...' : 'Start Execution'}
-                    </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This action will modify your files on disk and cannot be undone. 
-                        It's recommended to have a backup of your source folder.
-                    </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={startExecution}>Continue</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        )}
+        <Button onClick={handleReset} className="mx-auto" variant="secondary">
+          <Home className="mr-2 h-4 w-4" /> Start Over
+        </Button>
       </CardFooter>
     </Card>
   );

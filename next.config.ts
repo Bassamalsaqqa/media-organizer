@@ -1,10 +1,11 @@
 import type {NextConfig} from 'next';
+import webpack from 'webpack';
+import path from 'path';
+
+const wasmAliasTarget = 'mediainfo.js/dist/MediaInfoModule.wasm';
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  transpilePackages: ['mediainfo.js'],
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -29,6 +30,29 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  webpack: (config) => {
+    config.plugins.push(new webpack.IgnorePlugin({
+      resourceRegExp: /MediaInfoModule\.wasm$/,
+    }));
+
+    config.resolve = config.resolve ?? {};
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'mediainfo.js/dist/esm-bundle/index.js': path.resolve(
+        __dirname,
+        'src/lib/mediainfo-alias.js',
+      ),
+      'MediaInfoModule.wasm': wasmAliasTarget,
+    };
+
+    return config;
+  },
+  turbopack: {
+    resolveAlias: {
+      'mediainfo.js/dist/esm-bundle/index.js': './src/lib/mediainfo-alias.js',
+      'MediaInfoModule.wasm': wasmAliasTarget,
+    },
   },
 };
 
