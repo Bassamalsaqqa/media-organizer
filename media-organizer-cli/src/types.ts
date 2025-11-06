@@ -21,10 +21,19 @@ export interface Options {
 }
 
 export interface LogData extends PlanItem {
-  sourceHash: string;
+
+  sourceHash?: string;
+
   status: ExecutionStatus;
+
   startTime: string;
+
   endTime?: string;
+
   destHash?: string;
+
   error?: string;
+
+  fileSize?: number;
+
 }

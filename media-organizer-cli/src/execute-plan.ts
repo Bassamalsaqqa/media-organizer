@@ -94,11 +94,16 @@ async function readPlan(planPath: string): Promise<PlanItem[] | null> {
 async function executePlan(plan: PlanItem[], options: Options) {
   logger.info('Starting execution with copy-only policy. Source files will not be deleted.');
   const concurrency = options.concurrency;
-  const queue = [...plan];
-  let completed = 0;
-  let failed = 0;
+  const totalItems = plan.length;
+  let completedItems = 0;
+  let successfulCopies = 0;
+  let skippedCopies = 0;
+  let failedCopies = 0;
+  let totalBytesCopied = 0;
   const errors: string[] = [];
   const startTime = process.hrtime.bigint();
+  let lastProgressUpdateTime = process.hrtime.bigint();
+  let lastBytesCopiedAtUpdate = 0;
 
   const stateFile = '.organizer-state.jsonl';
   const auditLogFile = 'organizer-execution.log';
@@ -121,6 +126,36 @@ async function executePlan(plan: PlanItem[], options: Options) {
     }
   }
 
+  const queue = [...plan];
+
+  const displayProgress = () => {
+    const currentTime = process.hrtime.bigint();
+    const elapsedSeconds = Number(currentTime - startTime) / 1e9;
+    const bytesSinceLastUpdate = totalBytesCopied - lastBytesCopiedAtUpdate;
+    const timeSinceLastUpdate = Number(currentTime - lastProgressUpdateTime) / 1e9;
+
+    let currentSpeed = 0;
+    if (timeSinceLastUpdate > 0) {
+      currentSpeed = (bytesSinceLastUpdate / (1024 * 1024)) / timeSinceLastUpdate; // MB/s
+    }
+
+    const remainingItems = totalItems - completedItems;
+    let eta = 0;
+    if (successfulCopies > 0 && totalBytesCopied > 0) {
+      const avgBytesPerItem = totalBytesCopied / successfulCopies;
+      eta = (remainingItems * avgBytesPerItem) / (currentSpeed * 1024 * 1024); // seconds
+    }
+
+    logger.log(
+      `Progress: ${completedItems}/${totalItems} | Success: ${successfulCopies} | Skipped: ${skippedCopies} | Failed: ${failedCopies} | Speed: ${currentSpeed.toFixed(2)} MB/s | ETA: ${eta.toFixed(0)}s`
+    );
+
+    lastProgressUpdateTime = currentTime;
+    lastBytesCopiedAtUpdate = totalBytesCopied;
+  };
+
+  const progressInterval = setInterval(displayProgress, 1000);
+
   async function worker() {
     while (queue.length > 0) {
       const item = queue.shift();
@@ -136,19 +171,24 @@ async function executePlan(plan: PlanItem[], options: Options) {
 
       if (!sourcePath || !destPath) {
         logger.error(`Cannot resolve paths for item: ${item.source}. Missing --source-root or --dest-root for relative paths.`);
-        failed++;
+        failedCopies++;
+        completedItems++;
         errors.push(`${item.source}: Missing root path for relative path.`);
         continue;
       }
 
+      const sourceStats = await fs.stat(sourcePath);
+      const fileSize = sourceStats.size;
+
       const sourceHash = await hashFile(sourcePath);
       if (options.resume && completedHashes.has(sourceHash)) {
         logger.info(`Skipping already completed: ${sourcePath}`);
-        completed++;
+        skippedCopies++;
+        completedItems++;
         continue;
       }
 
-      const logData: LogData = { ...item, source: sourcePath, destination: destPath, sourceHash, status: 'pending', startTime: new Date().toISOString() };
+      const logData: LogData = { ...item, source: sourcePath, destination: destPath, sourceHash, status: 'pending', startTime: new Date().toISOString(), fileSize };
 
       try {
         if (options.dryRun) {
@@ -185,13 +225,16 @@ async function executePlan(plan: PlanItem[], options: Options) {
         }
         if (logData.status !== 'already-present') {
           logData.status = 'success';
+          successfulCopies++;
+          totalBytesCopied += fileSize;
         }
-        completed++;
       } catch (e: any) {
         logData.status = 'failed';
         logData.error = e.message;
-        failed++;
+        failedCopies++;
         errors.push(`${sourcePath}: ${e.message}`);
+      } finally {
+        completedItems++;
       }
 
       logData.endTime = new Date().toISOString();
@@ -199,27 +242,24 @@ async function executePlan(plan: PlanItem[], options: Options) {
       if (!options.dryRun && logData.status === 'success') {
         await logger.jsonl({ sourceHash, status: 'success' }, stateFile);
       }
-
-      const elapsed = Number(process.hrtime.bigint() - startTime) / 1e9;
-      const rate = (completed + failed) / elapsed;
-      const remaining = queue.length;
-      const eta = remaining / rate;
-      logger.log(`Progress: ${completed + failed}/${plan.length} | ETA: ${eta.toFixed(2)}s`);
     }
   }
 
   const workers = Array.from({ length: concurrency }, () => worker());
   await Promise.all(workers);
 
-  logger.info('Execution complete!');
-  logger.info(`Total: ${plan.length}, Completed: ${completed}, Failed: ${failed}`);
+  clearInterval(progressInterval);
+  displayProgress(); // Final update
 
-  if (failed > 0) {
+  logger.info('Execution complete!');
+  logger.info(`Total: ${totalItems}, Completed: ${successfulCopies}, Skipped: ${skippedCopies}, Failed: ${failedCopies}`);
+
+  if (failedCopies > 0) {
     logger.error('Errors:');
     for (const error of errors) {
       logger.error(`- ${error}`);
     }
-    process.exit(failed > 0 && completed > 0 ? 2 : 3);
+    process.exit(failedCopies > 0 && successfulCopies > 0 ? 2 : 3);
   }
 
   process.exit(0);
