@@ -108,7 +108,10 @@ export type SafeErrorCode =
   | 'HASH'
   | 'COPY'
   | 'POLICY'
-  | 'UNKNOWN';
+  | 'UNKNOWN'
+  | 'METADATA_WORKER'
+  | 'HASH_WORKER'
+  | 'PHASH_WORKER';
 
 export interface SafeError {
   code: SafeErrorCode;

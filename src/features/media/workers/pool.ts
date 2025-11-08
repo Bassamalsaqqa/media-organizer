@@ -7,7 +7,7 @@ type Job<T, R> = {
 type ProgressCallback = (progress: { completed: number; total: number }) => void;
 
 class WorkerPool<T, R> {
-  private workerPath: string;
+  private workerFactory: () => Worker;
   private numWorkers: number;
   private workers: Worker[] = [];
   private jobQueue: Job<T, R>[] = [];
@@ -16,8 +16,8 @@ class WorkerPool<T, R> {
   private completedJobs = 0;
   private totalJobs = 0;
 
-  constructor(workerPath: string, numWorkers: number = navigator.hardwareConcurrency || 8) {
-    this.workerPath = workerPath;
+  constructor(workerFactory: () => Worker, numWorkers: number = navigator.hardwareConcurrency || 8) {
+    this.workerFactory = workerFactory;
     this.numWorkers = numWorkers;
   }
 
@@ -39,7 +39,7 @@ class WorkerPool<T, R> {
     this.totalJobs = this.jobQueue.length;
 
     for (let i = 0; i < this.numWorkers; i++) {
-      const worker = new Worker(this.workerPath);
+      const worker = this.workerFactory();
       worker.onmessage = (event) => {
         const job = this.workers[i].__job as Job<T, R> | undefined;
         if (job) {
@@ -97,6 +97,6 @@ declare global {
     }
 }
 
-export function createWorkerPool<T, R>(workerPath: string, opts?: { numWorkers: number }) {
-  return new WorkerPool<T, R>(workerPath, opts?.numWorkers);
+export function createWorkerPool<T, R>(workerFactory: () => Worker, opts?: { numWorkers: number }) {
+  return new WorkerPool<T, R>(workerFactory, opts?.numWorkers);
 }

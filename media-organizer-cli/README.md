@@ -11,17 +11,21 @@ npm run build
 
 ## Usage
 
-### Dry Run
+By default, the CLI runs in **dry run** mode to show you what changes would be made without altering any files. To perform the actual file operations, you must explicitly add the `--execute` flag.
 
-To see what the CLI would do without actually moving or copying any files, use the `--dry-run` flag:
+> **Required flags:** `--source-root` and `--dest-root` are mandatory. The CLI will exit with an error if either is missing, because plans reference paths relative to these roots.
+
+### Dry Run (Default)
+
+Run this command to see a preview of the file operations.
 
 ```bash
-node dist/execute-plan.js --plan ./media-organizer-plan.json --dry-run
+node dist/execute-plan.js --plan ./media-organizer-plan.json --source-root "C:\Users\bassa\Pictures\media" --dest-root "C:\Users\bassa\Pictures\sorted media"
 ```
 
-### Execute
+### Executing the Plan
 
-To execute the plan, use the `--execute` flag. It's recommended to also use `--verify` to ensure file integrity after copying.
+To copy the files as specified in the plan, add the `--execute` flag. It is highly recommended to also use `--verify` to ensure file integrity after copying.
 
 ```bash
 node dist/execute-plan.js --plan ./media-organizer-plan.json --execute --verify --concurrency 6 --resume --source-root "C:\Users\bassa\Pictures\media" --dest-root "C:\Users\bassa\Pictures\sorted media"
@@ -29,20 +33,25 @@ node dist/execute-plan.js --plan ./media-organizer-plan.json --execute --verify 
 
 ## Safety
 
-The CLI never deletes files from the source. All operations are copy-only. If a destination file already exists and matches (size/hash), it is logged as already-present.
+The CLI never deletes files from the source. All operations are copy-only. 
+
+The CLI is designed to be safe by default:
+- It will only read files and log intended actions unless `--execute` is specified.
+- It will not overwrite existing files at the destination unless you remove the default `--no-overwrite` behavior (not currently possible as it's hardcoded to true).
+- It validates that destination paths do not point to locations outside of the specified `--dest-root`, preventing path traversal attacks.
 
 ### Options
 
-- `--plan <path>`: Path to the plan JSON file.
-- `--execute`: Execute the plan.
-- `--dry-run`: Perform a dry run without changing any files.
-- `--source-root <dir>`: The root directory for the source paths in the plan.
-- `--dest-root <dir>`: The root directory for the destination paths in the plan.
+- `--plan <path>`: **(Required)** Path to the plan JSON file.
+- `--execute`: **(Required for changes)** Executes the plan, copying files. Without this flag, the tool will only perform a dry run.
+- `--dry-run`: Performs a dry run without changing any files. This is the default behavior if `--execute` is not specified.
+- `--source-root <dir>`: **(Required)** The absolute path to the root directory where your source media is located.
+- `--dest-root <dir>`: **(Required)** The absolute path to the root directory where you want the media to be organized.
 - `--concurrency <n>`: Number of concurrent file operations (default: 4).
-- `--verify`: Verify file integrity by re-hashing after copying.
-- `--resume`: Resume a previous execution, skipping already completed files.
+- `--verify`: Verifies file integrity by re-hashing after copying.
+- `--resume`: Resumes a previous execution, skipping already completed files based on the state log.
 - `--duplicates-dir <path>`: Directory to move duplicates to (default: `<destRoot>/duplicates`).
-- `--no-overwrite`: Do not overwrite existing files at the destination (default).
+- `--no-overwrite`: If a file already exists at the destination, it will not be overwritten, even if the contents are different. This is on by default.
 
 ## Path Resolution
 

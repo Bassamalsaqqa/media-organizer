@@ -1,14 +1,13 @@
 import { createFsClient, IFsClient } from '@/features/fs';
-import { detectBestDate } from '@/features/metadata';
 import { PlanBuilder } from '@/features/plan';
 import { isSafeError } from '@/lib/errors';
 import * as logger from '@/features/logs';
-import type { MediaFile, MediaFileRef, OrganizeOptions, OrganizationPlan, PlanItem, MediaKind } from '@/types/media';
+import type { MediaFile, MediaFileRef, OrganizeOptions, OrganizationPlan, PlanItem } from '@/types/media';
 import { createMediaApi, IMediaApi } from '@/features/media';
 
 export class Planner {
   private fs: IFsClient;
-  private mediaApi: IMediaApi;
+  public mediaApi: IMediaApi;
   private options: OrganizeOptions;
   private planBuilder: PlanBuilder;
 
@@ -19,7 +18,11 @@ export class Planner {
     this.planBuilder = new PlanBuilder(options);
   }
 
-  public async generatePlan(sourceHandle: FileSystemDirectoryHandle): Promise<OrganizationPlan> {
+  public async generatePlan(
+    sourceHandle: FileSystemDirectoryHandle,
+    onProgress: (progress: { processed: number }) => void,
+  ): Promise<OrganizationPlan> {
+    let processed = 0;
     for await (const fileRef of this.fs.walkRecursive(sourceHandle)) {
       if (isSafeError(fileRef)) {
         // This error is already logged in the fs adapter
@@ -29,26 +32,35 @@ export class Planner {
 
       const mediaFile = await this.processFile(fileRef);
       this.planBuilder.addFile(mediaFile);
+      processed++;
+      if (processed % 10 === 0) { // Update progress every 10 files
+        onProgress({ processed });
+      }
     }
+    
+    onProgress({ processed }); // Final progress update
     return this.planBuilder.getPlan();
   }
 
   public async processFile(fileRef: MediaFileRef): Promise<MediaFile> {
-    const handle = fileRef.ref as FileSystemFileHandle;
-    const file = await handle.getFile();
-    const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    const kind: MediaKind = /jpe?g|png|gif|webp/.test(ext) ? 'photo' : /mov|mp4|mkv|avi/.test(ext) ? 'video' : 'unknown';
-
-    const detectedDate = await detectBestDate(file, kind, file.name);
-    const date = new Date(detectedDate.date);
-
-    const meta = {
-      kind,
-      detectedDate,
-      year: date.getUTCFullYear(),
-      month: date.getUTCMonth() + 1,
-      extension: ext,
-    };
+    const meta = await this.mediaApi.getMetadata(fileRef);
+    if (isSafeError(meta)) {
+      logger.error(meta);
+      // Create a minimal MediaFile object to represent the failure
+      const fallbackDate = new Date(fileRef.lastModified);
+      return {
+        ref: fileRef,
+        meta: {
+          kind: 'unknown',
+          detectedDate: { date: fallbackDate.toISOString(), source: 'fs', confidence: 1 },
+          year: fallbackDate.getUTCFullYear(),
+          month: fallbackDate.getUTCMonth() + 1,
+          extension: fileRef.name.split('.').pop()?.toLowerCase() || '',
+        },
+        hashes: {},
+        error: meta,
+      };
+    }
 
     const sha256 = await this.mediaApi.hashSha256(fileRef);
     if (isSafeError(sha256)) {

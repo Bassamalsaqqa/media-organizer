@@ -1,4 +1,4 @@
-export type ExecutionStatus = 'pending' | 'success' | 'failed' | 'already-present' | 'skipped' | 'conflict';
+export type ExecutionStatus = 'pending' | 'success' | 'failed' | 'already-present' | 'skipped' | 'conflict' | 'dry-run' | 'skipped-overwrite';
 
 export interface PlanItem {
   action: 'copy' | 'move' | 'skip' | 'duplicate';

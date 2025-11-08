@@ -20,6 +20,7 @@ export class Executor {
   private state: ExecuteState = 'idle';
   private fs: IFsClient;
   private plan: OrganizationPlan;
+  private planId: string;
   private sourceDir: FileSystemDirectoryHandle;
   private destDir: FileSystemDirectoryHandle;
   private onProgress: ProgressCallback;
@@ -30,15 +31,21 @@ export class Executor {
 
   constructor(
     plan: OrganizationPlan,
+    planId: string,
     sourceDir: FileSystemDirectoryHandle,
     destDir: FileSystemDirectoryHandle,
     onProgress: ProgressCallback,
   ) {
     this.fs = createFsClient();
     this.plan = plan;
+    this.planId = planId;
     this.sourceDir = sourceDir;
     this.destDir = destDir;
     this.onProgress = onProgress;
+  }
+
+  public getPlanId(): string {
+    return this.planId;
   }
 
   public async start() {
@@ -55,14 +62,28 @@ export class Executor {
   }
 
   public async resume() {
-    if (this.state !== 'paused') return;
-    this.state = 'running';
-    this.abortController = new AbortController();
-    const checkpoint = await loadCheckpoint(this.plan.summary.totals.files.toString()); // Assumes planId is total files
+    if (this.state !== 'paused' && this.state !== 'idle') {
+      return;
+    }
+
+    const checkpoint = await loadCheckpoint(this.planId);
     if (checkpoint) {
       this.completedIds = new Set(checkpoint.completedIds);
       this.bytesCopied = checkpoint.bytesCopied;
+      // Immediately update UI with resumed progress
+      this.onProgress({
+        current: this.completedIds.size,
+        total: this.plan.items.length,
+        bytesCopied: this.bytesCopied,
+        errors: this.errors, // Note: errors are not persisted in checkpoints
+      });
+    } else if (this.state === 'idle') {
+      // No checkpoint and we are idle, so just start fresh
+      return this.start();
     }
+
+    this.state = 'running';
+    this.abortController = new AbortController();
     this.run();
   }
 
@@ -113,7 +134,7 @@ export class Executor {
 
   private saveCheckpoint() {
     saveCheckpoint({
-      planId: this.plan.summary.totals.files.toString(),
+      planId: this.planId,
       completedIds: Array.from(this.completedIds),
       bytesCopied: this.bytesCopied,
       startedAt: Date.now(), // This should be set at the real start
@@ -123,6 +144,6 @@ export class Executor {
   }
 
   private clearCheckpoint() {
-    clearCheckpoint(this.plan.summary.totals.files.toString());
+    clearCheckpoint(this.planId);
   }
 }

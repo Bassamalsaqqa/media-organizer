@@ -16,7 +16,7 @@ import { Planner } from '@/features/planner';
 const fsClient = createFsClient();
 
 export default function SetOptions() {
-  const { options, setLayout, setDuplicateAction, setEnableNearDuplicate, setCurrentStep, sourceHandle, setPlan, setDetectDuplicates } = useAppStore();
+  const { options, setLayout, setDuplicateAction, setEnableNearDuplicate, setCurrentStep, sourceHandle, setPlan, setPlanner, setDetectDuplicates } = useAppStore();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -32,12 +32,22 @@ export default function SetOptions() {
 
     setIsLoading(true);
     try {
-      toast({ title: 'Scanning files and building plan...' });
+      const { id } = toast({ title: 'Scanning files...', description: 'Starting to build plan.' });
       const planner = new Planner(options);
-      const plan = await planner.generatePlan(sourceHandle);
+      setPlanner(planner);
+
+      const onProgress = ({ processed }: { processed: number }) => {
+        toast({
+          id,
+          title: 'Scanning files...',
+          description: `${processed} files analyzed.`,
+        });
+      };
+
+      const plan = await planner.generatePlan(sourceHandle, onProgress);
       setPlan(plan);
 
-      toast({ title: 'Dry-run ready!' });
+      toast({ id, title: 'Dry-run ready!', description: `Plan generated for ${plan.items.length} files.` });
       setCurrentStep(2);
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : "An unknown error occurred.";

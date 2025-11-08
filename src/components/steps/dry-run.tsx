@@ -16,13 +16,15 @@ import { useAppStore } from '@/store/app-store';
 import { ArrowLeft, ArrowRight, Download } from 'lucide-react';
 import { exportCsv, exportJson } from '@/features/report';
 import type { PlanItem } from '@/types/media';
-import { Planner } from '@/features/planner';
 
 export default function DryRun() {
-  const { plan, setCurrentStep, options, setPlan } = useAppStore();
+  const { plan, setCurrentStep, setPlan, planner } = useAppStore();
 
   const handleRetry = async (item: PlanItem) => {
-    const planner = new Planner(options);
+    if (!planner) {
+      console.error('Planner not available for retry');
+      return;
+    }
     const newPlan = await planner.reprocessFile(item);
     setPlan(newPlan);
   };

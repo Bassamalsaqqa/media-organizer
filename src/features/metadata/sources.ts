@@ -1,6 +1,7 @@
 import type { DetectedDate } from '@/types/media';
 import exifr from 'exifr';
-import { getMediaInfo } from '@/lib/mediainfo';
+import MediaInfo from 'mediainfo.js';
+import type { MediaInfo as MediaInfoType, Track } from 'mediainfo.js';
 
 // READ-ONLY: never modify files; only parse.
 
@@ -23,32 +24,35 @@ export async function detectPhotoDate_EXIF(file: File): Promise<DetectedDate | u
 
 export async function detectContainerDate(file: File): Promise<DetectedDate | undefined> {
   try {
-    const mediaInfo = await getMediaInfo();
-    if (!mediaInfo) return undefined; // SSR/edge render pass
+    const mediaInfo = await MediaInfo({
+        locateFile: (p: string) => p.endsWith('MediaInfoModule.wasm') ? '/mediainfo/MediaInfoModule.wasm' : p,
+        format: 'object',
+    });
+    if (mediaInfo) {
+      const result = await mediaInfo.analyzeData(
+        () => file.size,
+        async (chunkSize: number, offset: number) => {
+          const buffer = await file.slice(offset, offset + chunkSize).arrayBuffer();
+          return new Uint8Array(buffer);
+        }
+      );
 
-        const result = await mediaInfo.analyzeData(
-      () => file.size,
-      async (chunkSize, offset) => {
-        const buffer = await file.slice(offset, offset + chunkSize).arrayBuffer();
-        return new Uint8Array(buffer);
-      }
-    );
+      if (!result.media) return undefined;
 
-    const tracks = result.media.track;
-    const generalTrack = tracks.find((t: any) => t['@type'] === 'General');
+      const tracks = result.media.track;
+      const generalTrack = tracks.find((t: Track) => t['@type'] === 'General');
 
-    if (generalTrack) {
-      const dateFields = ['com.apple.quicktime.creationdate', 'creation_time', 'mediaCreateDate', 'Encoded_Date', 'Tagged_Date'];
-      for (const field of dateFields) {
-        if (generalTrack[field]) {
-          return { date: new Date(generalTrack[field]).toISOString(), source: 'container', confidence: 3 };
+      if (generalTrack) {
+        const dateFields = ['com.apple.quicktime.creationdate', 'creation_time', 'mediaCreateDate', 'Encoded_Date', 'Tagged_Date'];
+        for (const field of dateFields) {
+          if ((generalTrack as any)[field]) {
+            return { date: new Date((generalTrack as any)[field]).toISOString(), source: 'container', confidence: 3 };
+          }
         }
       }
     }
   } catch (e) {
     // Ignore errors
-  } finally {
-    // mediaInfo.close(); // MediaInfo instance is managed by the wrapper, no need to close here
   }
   return undefined;
 }

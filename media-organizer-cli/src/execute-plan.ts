@@ -78,6 +78,10 @@ function parseArgs(): Options {
     process.exit(1);
   }
 
+  if (!options.execute && !options.dryRun) {
+    options.dryRun = true;
+  }
+
   return options;
 }
 
@@ -93,6 +97,13 @@ async function readPlan(planPath: string): Promise<PlanItem[] | null> {
 
 async function executePlan(plan: PlanItem[], options: Options) {
   logger.info('Starting execution with copy-only policy. Source files will not be deleted.');
+
+  // Fail fast if roots are not provided, as they are mandatory for resolving plan paths.
+  if (!options.sourceRoot || !options.destRoot) {
+    logger.error('Error: --source-root and --dest-root are required arguments. Please provide the absolute paths to your source and destination directories.');
+    process.exit(1);
+  }
+
   const concurrency = options.concurrency;
   const totalItems = plan.length;
   let completedItems = 0;
@@ -161,20 +172,17 @@ async function executePlan(plan: PlanItem[], options: Options) {
       const item = queue.shift();
       if (!item) continue;
 
-      const sourcePath = path.isAbsolute(item.source)
-        ? item.source
-        : options.sourceRoot ? path.join(options.sourceRoot, item.source) : null;
+      const resolvedSourceRoot = path.resolve(options.sourceRoot!);
+      const resolvedDestRoot = path.resolve(options.destRoot!);
 
-      const destPath = path.isAbsolute(item.destination)
-        ? item.destination
-        : options.destRoot ? path.join(options.destRoot, item.destination) : null;
+      const sourcePath = path.resolve(resolvedSourceRoot, item.source);
+      const destPath = path.resolve(resolvedDestRoot, item.destination);
 
-      if (!sourcePath || !destPath) {
-        logger.error(`Cannot resolve paths for item: ${item.source}. Missing --source-root or --dest-root for relative paths.`);
-        failedCopies++;
-        completedItems++;
-        errors.push(`${item.source}: Missing root path for relative path.`);
-        continue;
+      if (path.relative(resolvedSourceRoot, sourcePath).startsWith('..')) {
+        throw new Error(`Source path "${item.source}" is outside of the source root "${options.sourceRoot}".`);
+      }
+      if (path.relative(resolvedDestRoot, destPath).startsWith('..')) {
+        throw new Error(`Destination path "${item.destination}" is outside of the destination root "${options.destRoot}".`);
       }
 
       const sourceStats = await fs.stat(sourcePath);
@@ -191,42 +199,55 @@ async function executePlan(plan: PlanItem[], options: Options) {
       const logData: LogData = { ...item, source: sourcePath, destination: destPath, sourceHash, status: 'pending', startTime: new Date().toISOString(), fileSize };
 
       try {
-        if (options.dryRun) {
-          logger.info(`[DRY RUN] ${item.action}: ${sourcePath} -> ${destPath}`);
+        if (!options.execute) {
+          logger.info(`[DRY RUN] Would ${item.action}: ${sourcePath} -> ${destPath}`);
+          logData.status = 'dry-run';
         } else {
+          // --- Execution Mode ---
           await ensureDir(path.dirname(destPath));
 
-          let destExists = false;
+          let destFileExists = false;
           try {
-            const destHash = await hashFile(destPath);
-            if (sourceHash === destHash) {
-              destExists = true;
-              logger.info(`Destination file already exists with same hash: ${destPath}`);
-              logData.status = 'already-present';
-            }
+            await fs.stat(destPath);
+            destFileExists = true;
           } catch (e: any) {
             if (e.code !== 'ENOENT') throw e;
           }
-
-          if (!destExists) {
-            if (item.action === 'move') {
-              logger.info(`[WARN][POLICY] Action 'move' coerced to 'copy' for ${sourcePath}`);
+          
+          if (destFileExists) {
+            if (options.noOverwrite) {
+              logger.info(`Skipping existing destination (--no-overwrite): ${destPath}`);
+              logData.status = 'skipped-overwrite';
+              skippedCopies++;
+              continue;
             }
-            await copyFile(sourcePath, destPath);
-
-            if (options.verify) {
-              const destHash = await hashFile(destPath);
-              if (sourceHash !== destHash) {
-                throw new Error('Verification failed: source and destination hashes do not match.');
-              }
-              logData.destHash = destHash;
+            
+            const destHash = await hashFile(destPath);
+            if (sourceHash === destHash) {
+              logger.info(`Destination file already exists with same hash: ${destPath}`);
+              logData.status = 'already-present';
+              skippedCopies++;
+              continue;
             }
           }
-        }
-        if (logData.status !== 'already-present') {
+
+          // Perform the copy
+          if (item.action === 'move') {
+            logger.info(`[WARN][POLICY] Action 'move' coerced to 'copy' for ${sourcePath}`);
+          }
+          await copyFile(sourcePath, destPath);
+          totalBytesCopied += fileSize;
+
+          if (options.verify) {
+            const destHashAfterCopy = await hashFile(destPath);
+            if (sourceHash !== destHashAfterCopy) {
+              throw new Error('Verification failed: source and destination hashes do not match.');
+            }
+            logData.destHash = destHashAfterCopy;
+          }
+          
           logData.status = 'success';
           successfulCopies++;
-          totalBytesCopied += fileSize;
         }
       } catch (e: any) {
         logData.status = 'failed';
@@ -239,7 +260,7 @@ async function executePlan(plan: PlanItem[], options: Options) {
 
       logData.endTime = new Date().toISOString();
       await logger.jsonl(logData, auditLogFile);
-      if (!options.dryRun && logData.status === 'success') {
+      if (options.execute && logData.status === 'success') {
         await logger.jsonl({ sourceHash, status: 'success' }, stateFile);
       }
     }

@@ -12,36 +12,47 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { exportJson } from '@/features/report';
 import { loadCheckpoint } from '@/features/resume/indexeddb';
+import { generatePlanId } from '@/features/plan/plan-id';
 
 export default function ExecuteProgress() {
-  const { plan, sourceHandle, destHandle, reset, setCurrentStep } = useAppStore();
+  const { plan, sourceHandle, destHandle, reset, setCurrentStep, progress, setProgress } = useAppStore();
   const [executor, setExecutor] = useState<Executor | null>(null);
-  const [progress, setProgress] = useState<ExecutionProgress>({ current: 0, total: plan?.items.length || 0, bytesCopied: 0, errors: [] });
   const [state, setState] = useState<ExecuteState>('idle');
   const { toast } = useToast();
 
   useEffect(() => {
-    if (plan && sourceHandle && destHandle) {
-      const onProgress = (p: ExecutionProgress) => {
-        setProgress(p);
-      };
-      const exec = new Executor(plan, sourceHandle, destHandle, onProgress);
-      setExecutor(exec);
+    const setupExecutor = async () => {
+      if (plan && sourceHandle && destHandle) {
+        const planId = await generatePlanId(plan);
+        const exec = new Executor(plan, planId, sourceHandle, destHandle, setProgress);
+        setExecutor(exec);
 
-      // Check for checkpoint
-      loadCheckpoint(plan.summary.totals.files.toString()).then(checkpoint => {
+        // Check for checkpoint
+        const checkpoint = await loadCheckpoint(planId);
         if (checkpoint) {
+          // Pre-fill the progress bar from the checkpoint data
+          setProgress({
+            current: checkpoint.completedIds.length,
+            total: plan.items.length,
+            bytesCopied: checkpoint.bytesCopied,
+            errors: [], // Errors are not persisted in checkpoints
+          });
           toast({
             title: 'Resume previous run?',
             description: `Found a checkpoint with ${checkpoint.completedIds.length} completed files.`,
             action: (
-              <Button onClick={() => executor?.resume()}>Resume</Button>
+              <Button onClick={() => {
+                exec.resume();
+                setState('running');
+              }}>Resume</Button>
             ),
           });
         }
-      });
-    }
-  }, [plan, sourceHandle, destHandle, toast]);
+      }
+    };
+
+    setupExecutor();
+  }, [plan, sourceHandle, destHandle, toast, setProgress]);
 
   const handleStart = () => {
     executor?.start();
