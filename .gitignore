@@ -1,0 +1,74 @@
+# ────────────────────────────────────────────────
+# Node / TypeScript
+# ────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# TypeScript build output
+dist/
+build/
+out/
+.next/
+.next-static/
+.cache/
+*.tsbuildinfo
+
+# ────────────────────────────────────────────────
+# Environment & secrets
+# ────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ────────────────────────────────────────────────
+# System / Editor junk
+# ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+
+# ────────────────────────────────────────────────
+# Temporary or generated app data
+# ────────────────────────────────────────────────
+.organizer-state.jsonl
+organizer-execution.log
+media-organizer-plan.json
+media-organizer-plan-test.json
+PROJECT_STATUS.md.backup
+*.tmp
+*.bak
+
+# ────────────────────────────────────────────────
+# CLI Sub-App: media-organizer-cli
+# ────────────────────────────────────────────────
+media-organizer-cli/node_modules/
+media-organizer-cli/dist/
+media-organizer-cli/out/
+media-organizer-cli/.cache/
+media-organizer-cli/output/
+media-organizer-cli/test-files/
+media-organizer-cli/*.log
+media-organizer-cli/.organizer-state.jsonl
+media-organizer-cli/media-organizer-plan*.json
+
+# ────────────────────────────────────────────────
+# Build artifacts / coverage
+# ────────────────────────────────────────────────
+coverage/
+*.lcov
+*.tgz
+
+# ────────────────────────────────────────────────
+# Local tooling files (AI Traces REMOVED)
+# ────────────────────────────────────────────────
+Gemfile.lock
+.turbo/
+.code/
+.vercel/
