@@ -2,6 +2,37 @@
 
 This is a local-first media organizer application that helps you organize your photos and videos into a structured directory format.
 
+## Quick Start
+
+### Requirements
+- Node.js 20+ and npm
+- macOS, Linux, or Windows
+- A Chromium-based browser (File System Access API support) for the web app
+
+### Web App
+```bash
+npm install
+npm run dev
+```
+Open http://localhost:9003 and follow the 4-step wizard (Select Folders → Options → Dry-Run → Execute).
+
+### CLI
+```bash
+cd media-organizer-cli
+npm install
+npm run build
+node dist/execute-plan.js --plan ./media-organizer-plan.json --source-root "<source dir>" --dest-root "<dest dir>" --dry-run
+```
+Add `--execute --verify` when you are ready to copy files. See the CLI README for more examples.
+
+### Workflow at a Glance
+1. Pick source/destination folders (browser prompts for permissions).
+2. Configure layout, duplicate detection, and run the planner (progress toasts show scanning status).
+3. Review the Dry-Run table (export JSON/CSV, retry problematic files).
+4. Execute in-browser or download the plan and run it via the CLI.
+
+*(Screenshot or diagram placeholder — add when available.)*
+
 ## Key Features
 
 - **Local First & Safe**: All file operations happen directly in your browser. Your files are never uploaded to a server. The application follows a strict **copy-only** policy, meaning your original files are never moved or deleted.
@@ -34,6 +65,15 @@ This project uses a Jest-like environment for unit tests. Test files (`*.spec.ts
 For an example of how business logic is tested, see the test suite for the core planning logic at `src/features/plan/__tests__/plan-builder.spec.ts`.
 
 Note: The `package.json` file does not contain a `test` script, so running the tests may require a specific local setup or direct invocation of a test runner like Jest or Vitest.
+
+## Troubleshooting
+
+| Symptom | Likely Cause / Fix |
+| --- | --- |
+| Browser can’t see folders | Ensure you’re using Chrome/Edge and grant File System Access permissions when prompted. |
+| Plan generation is stuck | Keep the tab focused; worker pools run client-side, so large libraries can take time. Check DevTools console for worker errors. |
+| CLI exits with “source path outside of root” | Pass absolute `--source-root` and `--dest-root` that point to the real directories used when generating the plan. |
+| MediaInfo errors | Make sure `npm install` copied `MediaInfoModule.wasm` into `public/mediainfo`. Re-run `npm install` if necessary. |
 
 ## MediaInfo WASM Handling
 MediaInfo WASM is served from `/public/mediainfo`. It is copied on `postinstall` and initialized in the browser with `locateFile()`.
