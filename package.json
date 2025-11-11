@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "postinstall": "node scripts/copy-mediainfo-wasm.cjs",
-    "dev": "next dev --turbopack -p 9003",
+    "dev": "next dev --turbopack -p 9004",
     "build": "cross-env NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",

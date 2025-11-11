@@ -14,7 +14,10 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <h1 className="text-2xl font-bold text-primary">{APP_NAME}</h1>
+            <h1 className="text-2xl font-bold text-primary flex items-center">
+              <img src="/app-icon.png" alt="App Icon" className="h-10 w-10 mr-2" />
+              {APP_NAME}
+            </h1>
             <div className="flex items-center gap-4">
               <span className="font-code text-sm text-muted-foreground hidden sm:inline">Local-First Media Organizer</span>
             </div>
@@ -64,6 +67,24 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         </div>
         {children}
       </main>
+      <footer className="border-t">
+        <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-muted-foreground">
+              Built by <a href="https://github.com/Bassamalsaqqa" target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">Bassam Alsaqqa</a>, Broadcast Engineer & Developer.
+              <a href="https://www.linkedin.com/in/bassamalsaqqa/" target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline ml-2">LinkedIn</a>
+            </p>
+            <div className="flex items-center gap-4">
+              <a href="/docs/architecture-review.md" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary">
+                Architecture
+              </a>
+              <a href="/docs/blueprint.md" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary">
+                Blueprint
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
