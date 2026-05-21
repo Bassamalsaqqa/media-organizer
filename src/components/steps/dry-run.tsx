@@ -22,7 +22,7 @@ export default function DryRun() {
 
   const handleRetry = async (item: PlanItem) => {
     if (!planner) {
-      console.error('Planner not available for retry');
+      console.warn('Planner not available for retry');
       return;
     }
     const newPlan = await planner.reprocessFile(item);

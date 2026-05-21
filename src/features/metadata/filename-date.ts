@@ -15,27 +15,25 @@ function parseDate(year: string, month: string, day: string, hour = '00', minute
 }
 
 export function detectFilenameDate(name: string): DetectedDate | undefined {
-  const patterns = [
-    // 20140117_205643000_iOS.jpg
-    /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\d{3}_iOS\.jpg$/i,
-    // IMG_20140117_205643.jpg / VID_20180314_143210.mp4
-    /(?:IMG|VID)_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\..+$/i,
-    // 2014-01-17 20.56.43.jpg / 2014-01-17 20-56-43
-    /(\d{4})-(\d{2})-(\d{2})[ _](\d{2})[.-](\d{2})[.-](\d{2})\..+$/i,
-    // WhatsApp Image 2019-05-03 at 14.22.10.jpeg
-    /WhatsApp Image (\d{4})-(\d{2})-(\d{2}) at (\d{2})\.(\d{2})\.(\d{2})\..+$/i,
-    // PXL_20211225_123456789.jpg / MVIMG_20200701_090102
-    /(?:PXL|MVIMG)_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\d*\..+$/i,
-    // 070320080823.mp4 (DDMMYYYYHHMMSS)
-    /(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})\..+$/i,
+  const patterns: Array<{ pattern: RegExp; order: 'ymd' | 'dmy' | 'mdy' }> = [
+    { pattern: /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\d{3}_iOS\.[^.]+$/i, order: 'ymd' },
+    { pattern: /(?:IMG|VID|PXL|MVIMG)[_-](\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})\d*\.[^.]+$/i, order: 'ymd' },
+    { pattern: /(\d{4})[-_.](\d{2})[-_.](\d{2})[ _-](\d{2})[.-](\d{2})[.-](\d{2})\.[^.]+$/i, order: 'ymd' },
+    { pattern: /WhatsApp (?:Image|Video) (\d{4})-(\d{2})-(\d{2}) at (\d{2})\.(\d{2})\.(\d{2})\.[^.]+$/i, order: 'ymd' },
+    { pattern: /(?:Screenshot|Screen Recording)[ _-](\d{4})[-_](\d{2})[-_](\d{2})[ _-](\d{2})[-_.](\d{2})[-_.](\d{2})\.[^.]+$/i, order: 'ymd' },
+    { pattern: /(\d{4})(\d{2})(\d{2})[-_ ]?(\d{2})(\d{2})(\d{2})\.[^.]+$/i, order: 'ymd' },
+    { pattern: /(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})(\d{2})?\.[^.]+$/i, order: 'dmy' },
+    { pattern: /(\d{2})-(\d{2})-(\d{4})[ _-](\d{2})[.-](\d{2})[.-](\d{2})\.[^.]+$/i, order: 'dmy' },
   ];
 
-  for (const pattern of patterns) {
+  for (const { pattern, order } of patterns) {
     const match = name.match(pattern);
     if (match) {
-      let date: string | null = null;
-      if (pattern.source.includes('DDMMYYYY')) { // Special handling for DDMMYYYY
-        date = parseDate(match[3], match[2], match[1], match[4], match[5]);
+      let date: string | null;
+      if (order === 'dmy') {
+        date = parseDate(match[3], match[2], match[1], match[4], match[5], match[6]);
+      } else if (order === 'mdy') {
+        date = parseDate(match[3], match[1], match[2], match[4], match[5], match[6]);
       } else {
         date = parseDate(match[1], match[2], match[3], match[4], match[5], match[6]);
       }

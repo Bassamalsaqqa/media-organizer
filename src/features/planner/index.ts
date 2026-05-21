@@ -4,6 +4,7 @@ import { isSafeError } from '@/lib/errors';
 import * as logger from '@/features/logs';
 import type { MediaFile, MediaFileRef, OrganizeOptions, OrganizationPlan, PlanItem } from '@/types/media';
 import { createMediaApi, IMediaApi } from '@/features/media';
+import { detectMediaKind, getExtension } from '@/features/media/kind';
 
 export class Planner {
   private fs: IFsClient;
@@ -25,8 +26,6 @@ export class Planner {
     let processed = 0;
     for await (const fileRef of this.fs.walkRecursive(sourceHandle)) {
       if (isSafeError(fileRef)) {
-        // This error is already logged in the fs adapter
-        // Here we can decide to add it to the plan as a special item
         continue;
       }
 
@@ -43,6 +42,22 @@ export class Planner {
   }
 
   public async processFile(fileRef: MediaFileRef): Promise<MediaFile> {
+    if (fileRef.error) {
+      const fallbackDate = new Date(fileRef.lastModified);
+      return {
+        ref: fileRef,
+        meta: {
+          kind: detectMediaKind(fileRef.name),
+          detectedDate: { date: fallbackDate.toISOString(), source: 'fs', confidence: 1 },
+          year: fallbackDate.getUTCFullYear(),
+          month: fallbackDate.getUTCMonth() + 1,
+          extension: getExtension(fileRef.name),
+        },
+        hashes: {},
+        error: fileRef.error,
+      };
+    }
+
     const meta = await this.mediaApi.getMetadata(fileRef);
     if (isSafeError(meta)) {
       logger.error(meta);
@@ -55,7 +70,7 @@ export class Planner {
           detectedDate: { date: fallbackDate.toISOString(), source: 'fs', confidence: 1 },
           year: fallbackDate.getUTCFullYear(),
           month: fallbackDate.getUTCMonth() + 1,
-          extension: fileRef.name.split('.').pop()?.toLowerCase() || '',
+          extension: getExtension(fileRef.name),
         },
         hashes: {},
         error: meta,

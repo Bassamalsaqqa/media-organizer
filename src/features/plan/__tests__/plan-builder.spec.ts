@@ -36,7 +36,7 @@ describe('PlanBuilder', () => {
     expect(plan.summary.totals.nearDup).toBe(0);
   });
 
-  it('should skip an exact duplicate when option is set', () => {
+  it('should copy exact duplicates even if an old skip option is present', () => {
     const options = { ...defaultOptions, duplicateAction: 'skip' as const };
     const planBuilder = new PlanBuilder(options);
 
@@ -48,8 +48,9 @@ describe('PlanBuilder', () => {
 
     const plan = planBuilder.getPlan();
 
-    expect(plan.items.length).toBe(1);
-    expect(plan.items[0].file.ref.id).toBe('id1');
+    expect(plan.items.length).toBe(2);
+    expect(plan.items.find(i => i.file.ref.id === 'id2')?.reason).toBe('duplicate-exact');
+    expect(plan.items.find(i => i.file.ref.id === 'id2')?.destRelPath).toBe('duplicates/photo/2023/01/b_duplicate_001.jpg');
     expect(plan.summary.totals.exactDup).toBe(1);
   });
 

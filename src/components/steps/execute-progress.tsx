@@ -24,7 +24,7 @@ export default function ExecuteProgress() {
     const setupExecutor = async () => {
       if (plan && sourceHandle && destHandle) {
         const planId = await generatePlanId(plan);
-        const exec = new Executor(plan, planId, sourceHandle, destHandle, setProgress);
+        const exec = new Executor(plan, planId, sourceHandle, destHandle, setProgress, setState);
         setExecutor(exec);
 
         // Check for checkpoint

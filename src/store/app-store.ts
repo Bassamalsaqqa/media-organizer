@@ -52,7 +52,7 @@ const initialState: AppState = {
     pattern: '{YYYY}/{MM}',
     detectDuplicates: true,
     enableNearDuplicate: false,
-    duplicateAction: 'skip',
+    duplicateAction: 'copy-to-duplicates',
     actionForUnique: 'copy',
     layout: 'kind-then-date',
   },

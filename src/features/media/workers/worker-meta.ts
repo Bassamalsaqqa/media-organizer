@@ -2,6 +2,7 @@ import exifr from 'exifr';
 import MediaInfo from 'mediainfo.js';
 import type { MediaInfo as MediaInfoType } from 'mediainfo.js';
 import type { MediaMeta, DetectedDate, DateSource } from '@/types/media';
+import { detectMediaKind, getExtension } from '../kind';
 
 type MediaInfoInstance = MediaInfoType<'object'>;
 
@@ -88,7 +89,7 @@ let mediaInfo: MediaInfoInstance | null = null;
 
 self.onmessage = async (event: MessageEvent<{file: File}>) => {
   const {file} = event.data;
-  const kind = /^image\//.test(file.type) ? 'photo' : /^video\//.test(file.type) ? 'video' : 'unknown';
+  const kind = detectMediaKind(file.name, file.type);
 
   try {
     if (!mediaInfo && kind === 'video') {
@@ -125,7 +126,7 @@ self.onmessage = async (event: MessageEvent<{file: File}>) => {
       detectedDate,
       year: date.getUTCFullYear(),
       month: date.getUTCMonth() + 1,
-      extension: file.name.split('.').pop()?.toLowerCase() || '',
+      extension: getExtension(file.name),
     };
 
     self.postMessage({meta});
@@ -136,7 +137,7 @@ self.onmessage = async (event: MessageEvent<{file: File}>) => {
         detectedDate: { date: fallbackDate.toISOString(), source: 'fs', confidence: 1 },
         year: fallbackDate.getUTCFullYear(),
         month: fallbackDate.getUTCMonth() + 1,
-        extension: file.name.split('.').pop()?.toLowerCase() || '',
+        extension: getExtension(file.name),
     };
     self.postMessage({ meta });
   }

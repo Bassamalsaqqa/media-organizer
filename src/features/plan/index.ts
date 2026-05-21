@@ -37,6 +37,7 @@ export class PlanBuilder {
   private filesByHash = new Map<string, MediaFile[]>();
   private filesByPHash = new Map<string, MediaFile[]>();
   private options: OrganizeOptions;
+  private duplicateCount = 0;
 
   constructor(options: OrganizeOptions) {
     this.options = options;
@@ -57,10 +58,6 @@ export class PlanBuilder {
       } else {
         this.filesByHash.set(file.hashes.sha256, [file]);
       }
-    }
-
-    if (isExactDup && this.options.duplicateAction === 'skip') {
-      return;
     }
 
     let isNearDup = false;
@@ -94,7 +91,9 @@ export class PlanBuilder {
     const isDup = isExactDup || isNearDup;
     const reason = isExactDup ? 'duplicate-exact' : isNearDup ? 'duplicate-near' : 'unique';
 
-    const dest = buildDestPath(file, this.options, isDup);
+    const dest = isDup
+      ? this.numberDuplicatePath(buildDestPath(file, this.options, true))
+      : buildDestPath(file, this.options, false);
     const finalPath = resolveCollision(this.destinationPaths, dest);
     this.destinationPaths.add(finalPath);
 
@@ -124,6 +123,21 @@ export class PlanBuilder {
       status: 'pending',
       meta: { policy: 'copy-only' },
     });
+  }
+
+  private numberDuplicatePath(destPath: string): string {
+    this.duplicateCount++;
+    const marker = `_duplicate_${String(this.duplicateCount).padStart(3, '0')}`;
+    const slashIndex = destPath.lastIndexOf('/');
+    const dir = slashIndex >= 0 ? destPath.substring(0, slashIndex + 1) : '';
+    const fileName = slashIndex >= 0 ? destPath.substring(slashIndex + 1) : destPath;
+    const dotIndex = fileName.lastIndexOf('.');
+
+    if (dotIndex <= 0) {
+      return `${dir}${fileName}${marker}`;
+    }
+
+    return `${dir}${fileName.substring(0, dotIndex)}${marker}${fileName.substring(dotIndex)}`;
   }
       
   public updateFile(file: MediaFile) {

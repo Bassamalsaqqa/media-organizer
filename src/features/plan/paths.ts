@@ -10,7 +10,7 @@ export function buildDestPath(file: MediaFile, options: OrganizeOptions, isDupli
   const { meta, ref } = file;
   const year = meta.year && meta.year > 2000 ? String(meta.year) : 'unknown';
   const month = meta.month ? String(meta.month).padStart(2, '0') : '00';
-  const kind = meta.kind === 'video' ? 'video' : 'photo';
+  const kind = meta.kind === 'photo' || meta.kind === 'video' ? meta.kind : 'unknown';
   const fileName = sanitize(ref.name);
 
   let parts: string[];

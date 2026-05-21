@@ -15,6 +15,7 @@ export type Progress = {
 };
 
 type ProgressCallback = (progress: Progress) => void;
+type StateCallback = (state: ExecuteState) => void;
 
 export class Executor {
   private state: ExecuteState = 'idle';
@@ -24,6 +25,7 @@ export class Executor {
   private sourceDir: FileSystemDirectoryHandle;
   private destDir: FileSystemDirectoryHandle;
   private onProgress: ProgressCallback;
+  private onStateChange?: StateCallback;
   private abortController: AbortController = new AbortController();
   private completedIds: Set<string> = new Set();
   private bytesCopied = 0;
@@ -35,6 +37,7 @@ export class Executor {
     sourceDir: FileSystemDirectoryHandle,
     destDir: FileSystemDirectoryHandle,
     onProgress: ProgressCallback,
+    onStateChange?: StateCallback,
   ) {
     this.fs = createFsClient();
     this.plan = plan;
@@ -42,6 +45,7 @@ export class Executor {
     this.sourceDir = sourceDir;
     this.destDir = destDir;
     this.onProgress = onProgress;
+    this.onStateChange = onStateChange;
   }
 
   public getPlanId(): string {
@@ -50,13 +54,13 @@ export class Executor {
 
   public async start() {
     if (this.state !== 'idle') return;
-    this.state = 'running';
+    this.setState('running');
     this.run();
   }
 
   public pause() {
     if (this.state !== 'running') return;
-    this.state = 'paused';
+    this.setState('paused');
     this.abortController.abort();
     this.saveCheckpoint();
   }
@@ -82,7 +86,7 @@ export class Executor {
       return this.start();
     }
 
-    this.state = 'running';
+    this.setState('running');
     this.abortController = new AbortController();
     this.run();
   }
@@ -127,9 +131,14 @@ export class Executor {
     }
 
     if (this.state === 'running') {
-      this.state = 'finished';
+      this.setState('finished');
       this.clearCheckpoint();
     }
+  }
+
+  private setState(state: ExecuteState) {
+    this.state = state;
+    this.onStateChange?.(state);
   }
 
   private saveCheckpoint() {

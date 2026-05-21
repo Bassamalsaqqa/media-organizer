@@ -40,7 +40,15 @@ async function* walkRecursive(
 
       if (isSafeError(result)) {
         logger.error(result);
-        yield result;
+        yield {
+          id: crypto.randomUUID(),
+          name: entry.name,
+          size: 0,
+          lastModified: Date.now(),
+          srcPath: newPath,
+          ref: entry,
+          error: result,
+        };
       } else {
         yield result;
       }

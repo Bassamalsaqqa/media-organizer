@@ -16,7 +16,7 @@ import { Planner } from '@/features/planner';
 const fsClient = createFsClient();
 
 export default function SetOptions() {
-  const { options, setLayout, setDuplicateAction, setEnableNearDuplicate, setCurrentStep, sourceHandle, setPlan, setPlanner, setDetectDuplicates } = useAppStore();
+  const { options, setLayout, setEnableNearDuplicate, setCurrentStep, sourceHandle, setPlan, setPlanner, setDetectDuplicates } = useAppStore();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -56,7 +56,7 @@ export default function SetOptions() {
         title: "Error generating dry-run",
         description: errorMessage,
       });
-      console.error(e);
+      console.warn(e);
     } finally {
       setIsLoading(false);
     }
@@ -127,17 +127,10 @@ export default function SetOptions() {
             </div>
             <div className="pl-6 space-y-2">
               <Label>Duplicate Handling</Label>
-              <RadioGroup
-                value={options.duplicateAction}
-                onValueChange={(value) => setDuplicateAction(value as 'skip' | 'copy-to-duplicates')}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="skip" id="skip" />
-                  <Label htmlFor="skip" className="cursor-pointer">Skip duplicates</Label>
-                </div>
+              <RadioGroup value={options.duplicateAction}>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="copy-to-duplicates" id="copy-dup" />
-                  <Label htmlFor="copy-dup" className="cursor-pointer">Copy duplicates to a 'duplicates' folder</Label>
+                  <Label htmlFor="copy-dup" className="cursor-pointer">Copy numbered duplicates to a 'duplicates' folder</Label>
                 </div>
               </RadioGroup>
             </div>

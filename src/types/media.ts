@@ -30,6 +30,7 @@ export interface MediaFileRef {
   lastModified: number;
   srcPath: string;
   ref: unknown;
+  error?: SafeError;
 }
 
 export interface MediaFile {

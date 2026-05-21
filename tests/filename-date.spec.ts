@@ -40,4 +40,14 @@ describe('detectFilenameDate', () => {
     const detected = detectFilenameDate('070320080823.mp4');
     expect(detected?.date).toBe('2008-03-07T08:23:00');
   });
+
+  it('should detect date from WhatsApp Video filenames', () => {
+    const detected = detectFilenameDate('WhatsApp Video 2020-11-05 at 21.10.09.mp4');
+    expect(detected?.date).toBe('2020-11-05T21:10:09');
+  });
+
+  it('should detect compact YYYYMMDDHHMMSS filenames', () => {
+    const detected = detectFilenameDate('20220506112233.avi');
+    expect(detected?.date).toBe('2022-05-06T11:22:33');
+  });
 });
