@@ -25,7 +25,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-body antialiased">
+      <body className="font-body antialiased" suppressHydrationWarning>
         <GlobalErrorHandler>{children}</GlobalErrorHandler>
         <Toaster />
       </body>

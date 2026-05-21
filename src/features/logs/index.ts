@@ -9,7 +9,7 @@ export const warn = (message: string, ...args: unknown[]) => {
 };
 
 export const error = (e: SafeError) => {
-  console.error(JSON.stringify({ level: 'error', ...e }));
+  console.warn(JSON.stringify({ level: 'error', ...e }));
 };
 
 export const toSafeError = (e: unknown, context: Record<string, unknown>): SafeError => {

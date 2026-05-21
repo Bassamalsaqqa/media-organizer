@@ -71,9 +71,16 @@ export default function DryRun() {
   };
 
   const summary = {
-    ok: plan.items.filter(item => item.status === 'success').length,
+    ok: plan.items.filter(item => item.status === 'pending' || item.status === 'success').length,
     skipped: plan.items.filter(item => item.status === 'skipped').length,
     errors: plan.items.filter(item => item.status === 'error').length,
+  };
+
+  const statusVariant = (status: PlanItem['status']) => {
+    if (status === 'error') return 'destructive';
+    if (status === 'skipped') return 'secondary';
+    if (status === 'pending') return 'outline';
+    return 'default';
   };
 
   return (
@@ -112,7 +119,7 @@ export default function DryRun() {
               {plan.items.map((item: PlanItem, index: number) => (
                 <TableRow key={index}>
                   <TableCell><Badge variant={item.action === 'copy' ? 'secondary' : 'default'}>{item.action}</Badge></TableCell>
-                  <TableCell><Badge variant={item.status === 'success' ? 'default' : item.status === 'skipped' ? 'secondary' : 'destructive'}>{item.status}</Badge></TableCell>
+                  <TableCell><Badge variant={statusVariant(item.status)}>{item.status}</Badge></TableCell>
                   <TableCell className="font-code">{item.file.ref.srcPath}</TableCell>
                   <TableCell className="font-code">{item.destRelPath}</TableCell>
                   <TableCell>{item.file.meta.detectedDate?.date} ({item.file.meta.detectedDate?.source})</TableCell>

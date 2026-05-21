@@ -130,7 +130,6 @@ self.onmessage = async (event: MessageEvent<{file: File}>) => {
 
     self.postMessage({meta});
   } catch (error) {
-    console.error('Error processing file:', file.name, error);
     const fallbackDate = new Date(file.lastModified);
     const meta: MediaMeta = {
         kind,

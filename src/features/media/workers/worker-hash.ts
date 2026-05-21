@@ -75,7 +75,6 @@ self.onmessage = async (event: MessageEvent<{ file?: File; frames?: ImageBitmap[
         self.postMessage({ vSig: signature });
     }
   } catch (error) {
-    console.error('Error hashing file:', error);
     self.postMessage({ error: 'Failed to hash file' });
   }
 };

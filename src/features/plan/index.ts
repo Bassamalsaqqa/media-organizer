@@ -103,6 +103,19 @@ export class PlanBuilder {
       action = 'copy';
     }
 
+    if (file.error) {
+      this.items.push({
+        file,
+        reason,
+        destRelPath: finalPath,
+        action,
+        status: 'error',
+        error: file.error,
+        meta: { policy: 'copy-only' },
+      });
+      return;
+    }
+
     this.items.push({
       file,
       reason,
