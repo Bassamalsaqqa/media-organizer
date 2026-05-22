@@ -36,7 +36,7 @@ export class PlanBuilder {
   private destinationPaths = new Set<string>();
   private filesByHash = new Map<string, MediaFile[]>();
   private filesByPHash = new Map<string, MediaFile[]>();
-  private existingDestinationHashes = new Set<string>();
+  private existingDestinationHashes = new Map<string, string>();
   private options: OrganizeOptions;
   private duplicateCount = 0;
 
@@ -50,8 +50,12 @@ export class PlanBuilder {
     if (file.meta.kind === 'video') this.summary.totals.videos++;
 
     let isExactDup = false;
+    const existingDestinationPath = file.hashes.sha256
+      ? this.existingDestinationHashes.get(file.hashes.sha256)
+      : undefined;
+
     if (this.options.detectDuplicates && file.hashes.sha256) {
-      if (this.existingDestinationHashes.has(file.hashes.sha256)) {
+      if (existingDestinationPath) {
         isExactDup = true;
         this.summary.totals.exactDup++;
       }
@@ -59,7 +63,7 @@ export class PlanBuilder {
       const group = this.filesByHash.get(file.hashes.sha256);
       if (group) {
         isExactDup = true;
-        if (!this.existingDestinationHashes.has(file.hashes.sha256)) {
+        if (!existingDestinationPath) {
           this.summary.totals.exactDup++;
         }
         group.push(file);
@@ -110,6 +114,18 @@ export class PlanBuilder {
       action = 'copy';
     }
 
+    if (existingDestinationPath && !file.error) {
+      this.items.push({
+        file,
+        reason: 'duplicate-exact',
+        destRelPath: existingDestinationPath,
+        action,
+        status: 'skipped',
+        meta: { policy: 'copy-only' },
+      });
+      return;
+    }
+
     if (file.error) {
       this.items.push({
         file,
@@ -133,8 +149,10 @@ export class PlanBuilder {
     });
   }
 
-  public addExistingDestinationHash(hash: string) {
-    this.existingDestinationHashes.add(hash);
+  public addExistingDestinationHash(hash: string, destRelPath: string) {
+    if (!this.existingDestinationHashes.has(hash)) {
+      this.existingDestinationHashes.set(hash, destRelPath);
+    }
   }
 
   private numberDuplicatePath(destPath: string): string {

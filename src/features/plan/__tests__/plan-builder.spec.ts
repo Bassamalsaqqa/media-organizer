@@ -57,7 +57,7 @@ describe('PlanBuilder', () => {
   it('should route files duplicated from an existing destination index to duplicates', () => {
     const options = { ...defaultOptions };
     const planBuilder = new PlanBuilder(options);
-    planBuilder.addExistingDestinationHash('hash1');
+    planBuilder.addExistingDestinationHash('hash1', 'photo/2023/01/existing.jpg');
 
     const file = createMockMediaFile('id1', 'source/a.jpg', 'hash1');
     planBuilder.addFile(file);
@@ -66,7 +66,8 @@ describe('PlanBuilder', () => {
 
     expect(plan.items.length).toBe(1);
     expect(plan.items[0].reason).toBe('duplicate-exact');
-    expect(plan.items[0].destRelPath).toBe('duplicates/photo/2023/01/a_duplicate_001.jpg');
+    expect(plan.items[0].status).toBe('skipped');
+    expect(plan.items[0].destRelPath).toBe('photo/2023/01/existing.jpg');
     expect(plan.summary.totals.exactDup).toBe(1);
   });
 

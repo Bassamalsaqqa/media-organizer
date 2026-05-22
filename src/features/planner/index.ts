@@ -64,7 +64,7 @@ export class Planner {
 
       const sha256 = await this.mediaApi.hashSha256(fileRef);
       if (!isSafeError(sha256)) {
-        this.planBuilder.addExistingDestinationHash(sha256);
+        this.planBuilder.addExistingDestinationHash(sha256, fileRef.srcPath);
       }
 
       processed++;

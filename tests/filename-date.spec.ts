@@ -50,4 +50,19 @@ describe('detectFilenameDate', () => {
     const detected = detectFilenameDate('20220506112233.avi');
     expect(detected?.date).toBe('2022-05-06T11:22:33');
   });
+
+  it('should detect WhatsApp exported IMG filenames', () => {
+    const detected = detectFilenameDate('IMG-20181231-WA0007.jpg');
+    expect(detected?.date).toBe('2018-12-31T00:00:00');
+  });
+
+  it('should detect Signal filenames', () => {
+    const detected = detectFilenameDate('Signal-2020-04-05-213045.mp4');
+    expect(detected?.date).toBe('2020-04-05T21:30:45');
+  });
+
+  it('should detect date-only ISO-style filenames', () => {
+    const detected = detectFilenameDate('1999-12-31.jpeg');
+    expect(detected?.date).toBe('1999-12-31T00:00:00');
+  });
 });

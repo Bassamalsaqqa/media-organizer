@@ -97,6 +97,27 @@ export class Executor {
     for (const item of queue) {
       if (this.state !== 'running') break;
 
+      if (item.status === 'skipped') {
+        this.completedIds.add(item.file.ref.id);
+        this.failedIds.delete(item.file.ref.id);
+        await this.saveCheckpoint();
+        this.emitProgress();
+        continue;
+      }
+
+      if (item.status === 'error') {
+        const itemError: SafeError = item.error ?? {
+          code: 'UNKNOWN',
+          message: 'File could not be planned for copying.',
+          file: item.file.ref.srcPath,
+        };
+        this.errors.push(itemError);
+        this.failedIds.add(item.file.ref.id);
+        await this.saveCheckpoint();
+        this.emitProgress();
+        continue;
+      }
+
       if (READ_ONLY && item.action !== 'copy') {
         const policyError: SafeError = {
           code: 'POLICY',
