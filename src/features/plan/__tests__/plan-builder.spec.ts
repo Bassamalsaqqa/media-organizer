@@ -54,6 +54,22 @@ describe('PlanBuilder', () => {
     expect(plan.summary.totals.exactDup).toBe(1);
   });
 
+  it('should route files duplicated from an existing destination index to duplicates', () => {
+    const options = { ...defaultOptions };
+    const planBuilder = new PlanBuilder(options);
+    planBuilder.addExistingDestinationHash('hash1');
+
+    const file = createMockMediaFile('id1', 'source/a.jpg', 'hash1');
+    planBuilder.addFile(file);
+
+    const plan = planBuilder.getPlan();
+
+    expect(plan.items.length).toBe(1);
+    expect(plan.items[0].reason).toBe('duplicate-exact');
+    expect(plan.items[0].destRelPath).toBe('duplicates/photo/2023/01/a_duplicate_001.jpg');
+    expect(plan.summary.totals.exactDup).toBe(1);
+  });
+
   it('should identify a near duplicate', () => {
     const options = { ...defaultOptions };
     const planBuilder = new PlanBuilder(options);

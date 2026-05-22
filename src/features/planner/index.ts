@@ -6,6 +6,11 @@ import type { MediaFile, MediaFileRef, OrganizeOptions, OrganizationPlan, PlanIt
 import { createMediaApi, IMediaApi } from '@/features/media';
 import { detectMediaKind, getExtension } from '@/features/media/kind';
 
+export type PlanProgress = {
+  phase: 'index-destination' | 'scan-source';
+  processed: number;
+};
+
 export class Planner {
   private fs: IFsClient;
   public mediaApi: IMediaApi;
@@ -21,8 +26,13 @@ export class Planner {
 
   public async generatePlan(
     sourceHandle: FileSystemDirectoryHandle,
-    onProgress: (progress: { processed: number }) => void,
+    destHandle: FileSystemDirectoryHandle | null,
+    onProgress: (progress: PlanProgress) => void,
   ): Promise<OrganizationPlan> {
+    if (destHandle && this.options.detectDuplicates) {
+      await this.indexDestination(destHandle, onProgress);
+    }
+
     let processed = 0;
     for await (const fileRef of this.fs.walkRecursive(sourceHandle)) {
       if (isSafeError(fileRef)) {
@@ -33,12 +43,37 @@ export class Planner {
       this.planBuilder.addFile(mediaFile);
       processed++;
       if (processed % 10 === 0) { // Update progress every 10 files
-        onProgress({ processed });
+        onProgress({ phase: 'scan-source', processed });
       }
     }
     
-    onProgress({ processed }); // Final progress update
+    onProgress({ phase: 'scan-source', processed }); // Final progress update
     return this.planBuilder.getPlan();
+  }
+
+  private async indexDestination(
+    destHandle: FileSystemDirectoryHandle,
+    onProgress: (progress: PlanProgress) => void,
+  ) {
+    let processed = 0;
+
+    for await (const fileRef of this.fs.walkRecursive(destHandle)) {
+      if (isSafeError(fileRef) || fileRef.error) {
+        continue;
+      }
+
+      const sha256 = await this.mediaApi.hashSha256(fileRef);
+      if (!isSafeError(sha256)) {
+        this.planBuilder.addExistingDestinationHash(sha256);
+      }
+
+      processed++;
+      if (processed % 10 === 0) {
+        onProgress({ phase: 'index-destination', processed });
+      }
+    }
+
+    onProgress({ phase: 'index-destination', processed });
   }
 
   public async processFile(fileRef: MediaFileRef): Promise<MediaFile> {

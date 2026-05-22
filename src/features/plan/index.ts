@@ -36,6 +36,7 @@ export class PlanBuilder {
   private destinationPaths = new Set<string>();
   private filesByHash = new Map<string, MediaFile[]>();
   private filesByPHash = new Map<string, MediaFile[]>();
+  private existingDestinationHashes = new Set<string>();
   private options: OrganizeOptions;
   private duplicateCount = 0;
 
@@ -50,10 +51,17 @@ export class PlanBuilder {
 
     let isExactDup = false;
     if (this.options.detectDuplicates && file.hashes.sha256) {
+      if (this.existingDestinationHashes.has(file.hashes.sha256)) {
+        isExactDup = true;
+        this.summary.totals.exactDup++;
+      }
+
       const group = this.filesByHash.get(file.hashes.sha256);
       if (group) {
         isExactDup = true;
-        this.summary.totals.exactDup++;
+        if (!this.existingDestinationHashes.has(file.hashes.sha256)) {
+          this.summary.totals.exactDup++;
+        }
         group.push(file);
       } else {
         this.filesByHash.set(file.hashes.sha256, [file]);
@@ -123,6 +131,10 @@ export class PlanBuilder {
       status: 'pending',
       meta: { policy: 'copy-only' },
     });
+  }
+
+  public addExistingDestinationHash(hash: string) {
+    this.existingDestinationHashes.add(hash);
   }
 
   private numberDuplicatePath(destPath: string): string {

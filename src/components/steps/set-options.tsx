@@ -4,21 +4,22 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useAppStore } from '@/store/app-store';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createFsClient } from '@/features/fs';
-import { Planner } from '@/features/planner';
+import { PlanProgress, Planner } from '@/features/planner';
 
 const fsClient = createFsClient();
 
 export default function SetOptions() {
-  const { options, setLayout, setEnableNearDuplicate, setCurrentStep, sourceHandle, setPlan, setPlanner, setDetectDuplicates } = useAppStore();
+  const { options, setLayout, setEnableNearDuplicate, setCurrentStep, sourceHandle, destHandle, setPlan, setPlanner, setDetectDuplicates } = useAppStore();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [scanProgress, setScanProgress] = useState<PlanProgress | null>(null);
 
   const handleNext = async () => {
     if (!sourceHandle) {
@@ -31,20 +32,23 @@ export default function SetOptions() {
     }
 
     setIsLoading(true);
+    setScanProgress({ phase: 'index-destination', processed: 0 });
     try {
       const { id } = toast({ title: 'Scanning files...', description: 'Starting to build plan.' });
       const planner = new Planner(options);
       setPlanner(planner);
 
-      const onProgress = ({ processed }: { processed: number }) => {
+      const onProgress = (progress: PlanProgress) => {
+        setScanProgress(progress);
+        const label = progress.phase === 'index-destination' ? 'destination files indexed' : 'source files analyzed';
         toast({
           id,
           title: 'Scanning files...',
-          description: `${processed} files analyzed.`,
+          description: `${progress.processed} ${label}.`,
         });
       };
 
-      const plan = await planner.generatePlan(sourceHandle, onProgress);
+      const plan = await planner.generatePlan(sourceHandle, destHandle, onProgress);
       setPlan(plan);
 
       toast({ id, title: 'Dry-run ready!', description: `Plan generated for ${plan.items.length} files.` });
@@ -59,8 +63,13 @@ export default function SetOptions() {
       console.warn(e);
     } finally {
       setIsLoading(false);
+      setScanProgress(null);
     }
   };
+
+  const progressLabel = scanProgress?.phase === 'index-destination'
+    ? `${scanProgress.processed} destination files indexed`
+    : `${scanProgress?.processed ?? 0} source files analyzed`;
 
   return (
     <Card className="w-full max-w-2xl mx-auto shadow-lg">
@@ -134,6 +143,17 @@ export default function SetOptions() {
                 </div>
               </RadioGroup>
             </div>
+          </div>
+        )}
+        {isLoading && scanProgress && (
+          <div className="space-y-2 rounded-md border p-4">
+            <div className="flex items-center justify-between gap-4 text-sm">
+              <span className="font-medium">
+                {scanProgress.phase === 'index-destination' ? 'Indexing destination' : 'Analyzing source'}
+              </span>
+              <span className="font-code text-muted-foreground">{progressLabel}</span>
+            </div>
+            <Progress value={scanProgress.processed % 10 === 0 ? 90 : 55} />
           </div>
         )}
       </CardContent>
