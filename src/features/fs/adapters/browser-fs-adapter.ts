@@ -1,8 +1,12 @@
 import { safeWrap, isSafeError } from '@/lib/errors';
 import * as logger from '@/features/logs';
-import type { IFsClient } from '..';
+import type { CopyOptions, CopyResult, IFsClient } from '..';
 import type { MediaFileRef, SafeError } from '@/types/media';
 import * as path from 'path-browserify';
+
+function stableFileId(srcPath: string, size: number, lastModified: number): string {
+  return `${srcPath}|${size}|${Math.round(lastModified)}`;
+}
 
 async function pickDirectory(opts: { mode: 'read' | 'readwrite' }): Promise<FileSystemDirectoryHandle | null> {
   try {
@@ -27,7 +31,7 @@ async function* walkRecursive(
         async () => {
           const file = await entry.getFile();
           return {
-            id: crypto.randomUUID(),
+            id: stableFileId(newPath, file.size, file.lastModified),
             name: entry.name,
             size: file.size,
             lastModified: file.lastModified,
@@ -41,10 +45,10 @@ async function* walkRecursive(
       if (isSafeError(result)) {
         logger.error(result);
         yield {
-          id: crypto.randomUUID(),
+          id: stableFileId(newPath, 0, 0),
           name: entry.name,
           size: 0,
-          lastModified: Date.now(),
+          lastModified: 0,
           srcPath: newPath,
           ref: entry,
           error: result,
@@ -85,7 +89,12 @@ async function resolveFileNameCollision(desiredName: string, checkExists: (name:
   return finalName;
 }
 
-async function copy(ref: MediaFileRef, destRoot: FileSystemDirectoryHandle, destRelPath: string): Promise<void | SafeError> {
+async function copy(
+  ref: MediaFileRef,
+  destRoot: FileSystemDirectoryHandle,
+  destRelPath: string,
+  options: CopyOptions = {},
+): Promise<CopyResult | SafeError> {
   return safeWrap(
     'COPY',
     async () => {
@@ -97,24 +106,61 @@ async function copy(ref: MediaFileRef, destRoot: FileSystemDirectoryHandle, dest
       const dirSegments = destPathParts;
 
       const destDirHandle = await ensureDir(dirSegments, destRoot);
-
-      const finalFileName = await resolveFileNameCollision(fileName, async (nameToCheck) => {
-        try {
-          await destDirHandle.getFileHandle(nameToCheck, { create: false });
-          return true;
-        } catch (e: any) {
-          if (e.name === 'NotFoundError') return false;
-          throw e;
+      const existing = await getExistingFile(destDirHandle, fileName);
+      if (existing) {
+        const existingFile = await existing.getFile();
+        if (existingFile.size === file.size) {
+          const expectedHash = options.expectedSha256 ?? await hashFile(file);
+          const existingHash = await hashFile(existingFile);
+          if (existingHash === expectedHash) {
+            return { status: 'already-exists', bytesCopied: 0 };
+          }
         }
-      });
+        if (!options.overwriteExisting) {
+          throw new Error(`Destination exists but does not match the planned file: ${destRelPath}`);
+        }
+      }
+
+      const finalFileName = options.overwriteExisting
+        ? fileName
+        : await resolveFileNameCollision(fileName, async (nameToCheck) => {
+            try {
+              await destDirHandle.getFileHandle(nameToCheck, { create: false });
+              return true;
+            } catch (e: any) {
+              if (e.name === 'NotFoundError') return false;
+              throw e;
+            }
+          });
 
       const destFileHandle = await destDirHandle.getFileHandle(finalFileName, { create: true });
       const writable = await destFileHandle.createWritable({ keepExistingData: false });
       await writable.write(file);
       await writable.close();
+      return { status: 'copied', bytesCopied: file.size };
     },
     { file: ref.srcPath },
   );
+}
+
+async function hashFile(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function getExistingFile(
+  dirHandle: FileSystemDirectoryHandle,
+  fileName: string,
+): Promise<FileSystemFileHandle | null> {
+  try {
+    return await dirHandle.getFileHandle(fileName, { create: false });
+  } catch (e: any) {
+    if (e.name === 'NotFoundError') return null;
+    throw e;
+  }
 }
 
 export const browserFsAdapter: IFsClient = {

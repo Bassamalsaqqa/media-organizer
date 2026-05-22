@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useAppStore } from '@/store/app-store';
-import { CheckCircle, Home, Copy, Download, Play, Pause, XCircle } from 'lucide-react';
-import React, { useState, useRef, useEffect } from 'react';
+import { AlertCircle, CheckCircle, Home, Copy, Download, Play, Pause, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { Executor, ExecuteState, Progress as ExecutionProgress } from '@/features/execute';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -35,15 +35,14 @@ export default function ExecuteProgress() {
             current: checkpoint.completedIds.length,
             total: plan.items.length,
             bytesCopied: checkpoint.bytesCopied,
-            errors: [], // Errors are not persisted in checkpoints
+            errors: [],
           });
           toast({
             title: 'Resume previous run?',
-            description: `Found a checkpoint with ${checkpoint.completedIds.length} completed files.`,
+            description: `Found ${checkpoint.completedIds.length} completed and ${checkpoint.failedIds?.length ?? 0} failed files.`,
             action: (
               <Button onClick={() => {
                 exec.resume();
-                setState('running');
               }}>Resume</Button>
             ),
           });
@@ -56,7 +55,6 @@ export default function ExecuteProgress() {
 
   const handleStart = () => {
     executor?.start();
-    setState('running');
   };
 
   const handlePause = () => {
@@ -66,7 +64,10 @@ export default function ExecuteProgress() {
 
   const handleResume = () => {
     executor?.resume();
-    setState('running');
+  };
+
+  const handleRetryFailed = () => {
+    executor?.retryFailed();
   };
 
   const handleReset = () => {
@@ -112,6 +113,19 @@ export default function ExecuteProgress() {
             <h3 className="text-2xl font-semibold">Execution Complete!</h3>
             <p className="text-muted-foreground">Your media has been organized.</p>
           </div>
+        ) : state === 'finished-with-errors' ? (
+          <div className="space-y-4">
+            <div className="flex flex-col items-center justify-center text-center p-8 space-y-4">
+              <AlertCircle className="h-16 w-16 text-yellow-500" />
+              <h3 className="text-2xl font-semibold">Execution Finished With Errors</h3>
+              <p className="text-muted-foreground">Some files were not copied. Reconnect any missing drives and retry failed files.</p>
+            </div>
+            <ScrollArea className="h-48 w-full rounded-md border">
+              <div className="text-xs font-code space-y-1 p-2">
+                {progress.errors.map((err, i) => <p key={i} className="break-all text-red-500">[{err.code}] {err.file}: {err.message}</p>)}
+              </div>
+            </ScrollArea>
+          </div>
         ) : (
           <>
             <div className="space-y-2">
@@ -137,6 +151,11 @@ export default function ExecuteProgress() {
           )}
           {state === 'paused' && (
             <Button onClick={handleResume}><Play className="mr-2 h-4 w-4" /> Resume</Button>
+          )}
+          {(state === 'paused' || state === 'finished-with-errors') && progress.errors.length > 0 && (
+            <Button onClick={handleRetryFailed} variant="secondary">
+              <RotateCcw className="mr-2 h-4 w-4" /> Retry Failed
+            </Button>
           )}
         </div>
 

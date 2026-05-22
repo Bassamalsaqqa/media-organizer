@@ -76,6 +76,7 @@ export interface PlanSummary {
 export interface ResumeState {
   planId: string;
   completedIds: string[];
+  failedIds: string[];
   bytesCopied: number;
   startedAt: number;
   lastUpdated: number;
@@ -108,7 +109,9 @@ export type SafeErrorCode =
   | 'FS_READ'
   | 'HASH'
   | 'COPY'
+  | 'DEST_VERIFY'
   | 'POLICY'
+  | 'STORAGE_DISCONNECTED'
   | 'UNKNOWN'
   | 'METADATA_WORKER'
   | 'HASH_WORKER'
