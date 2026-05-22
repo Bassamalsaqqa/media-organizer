@@ -1,9 +1,4 @@
-async function sha256(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+import { sha256Blob } from '../sha256';
 
 async function pHash(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
@@ -65,7 +60,7 @@ self.onmessage = async (event: MessageEvent<{ file?: File; frames?: ImageBitmap[
 
   try {
     if (type === 'sha256' && file) {
-      const hash = await sha256(file);
+      const hash = await sha256Blob(file);
       self.postMessage({ hash });
     } else if (type === 'pHash' && file) {
       const hash = await pHash(file);
@@ -75,6 +70,6 @@ self.onmessage = async (event: MessageEvent<{ file?: File; frames?: ImageBitmap[
         self.postMessage({ vSig: signature });
     }
   } catch (error) {
-    self.postMessage({ error: 'Failed to hash file' });
+    self.postMessage({ error: error instanceof Error ? error.message : 'Failed to hash file' });
   }
 };

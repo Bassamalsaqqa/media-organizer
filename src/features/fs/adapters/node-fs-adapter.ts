@@ -3,6 +3,7 @@ import type { MediaFileRef } from '@/types/media';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'crypto';
+import { createReadStream } from 'fs';
 
 async function pickDirectory(opts: { mode: 'read' | 'readwrite' }): Promise<any> {
   throw new Error('Not implemented for node');
@@ -84,8 +85,13 @@ async function copy(ref: MediaFileRef, destRoot: any, destRelPath: string, optio
 }
 
 async function hashFile(filePath: string): Promise<string> {
-  const buffer = await fs.readFile(filePath);
-  return createHash('sha256').update(buffer).digest('hex');
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha256');
+    const stream = createReadStream(filePath);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
 }
 
 export const nodeFsAdapter: IFsClient = {

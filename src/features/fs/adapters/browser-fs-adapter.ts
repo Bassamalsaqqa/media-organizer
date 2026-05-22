@@ -3,6 +3,7 @@ import * as logger from '@/features/logs';
 import type { CopyOptions, CopyResult, IFsClient } from '..';
 import type { MediaFileRef, SafeError } from '@/types/media';
 import * as path from 'path-browserify';
+import { sha256Blob } from '@/features/media/sha256';
 
 function stableFileId(srcPath: string, size: number, lastModified: number): string {
   return `${srcPath}|${size}|${Math.round(lastModified)}`;
@@ -144,11 +145,7 @@ async function copy(
 }
 
 async function hashFile(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+  return sha256Blob(file);
 }
 
 async function getExistingFile(

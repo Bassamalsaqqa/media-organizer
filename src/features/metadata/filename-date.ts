@@ -22,13 +22,14 @@ function parseDate(year: string, month: string, day: string, hour = '00', minute
     return null;
   }
 
-  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}`;
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hour.padStart(2, '0')}:${minute.padStart(2, '0')}:${second.padStart(2, '0')}Z`;
 }
 
 export function detectFilenameDate(name: string): DetectedDate | undefined {
   const patterns: Array<{ pattern: RegExp; order: 'ymd' | 'dmy' | 'mdy' }> = [
     { pattern: /(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\d{3}_iOS\.[^.]+$/i, order: 'ymd' },
-    { pattern: /(?:IMG|VID|PXL|MVIMG)[_-](\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})\d*\.[^.]+$/i, order: 'ymd' },
+    { pattern: /(?:IMG|VID|MVI|PXL|MVIMG)[_-](\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})\d*\.[^.]+$/i, order: 'ymd' },
+    { pattern: /(?:IMG|VID|MVI|PXL|MVIMG)[_-](\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\d*\.[^.]+$/i, order: 'ymd' },
     { pattern: /(?:IMG|VID)-(\d{4})(\d{2})(\d{2})-WA\d+\.[^.]+$/i, order: 'ymd' },
     { pattern: /(\d{4})[-_.](\d{2})[-_.](\d{2})[ _-](\d{2})[.-](\d{2})[.-](\d{2})\.[^.]+$/i, order: 'ymd' },
     { pattern: /(\d{4})[-_.](\d{2})[-_.](\d{2})\.[^.]+$/i, order: 'ymd' },

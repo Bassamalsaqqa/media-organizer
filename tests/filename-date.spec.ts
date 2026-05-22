@@ -7,62 +7,67 @@ describe('detectFilenameDate', () => {
 
   it('should detect date from 20140117_205643000_iOS.jpg', () => {
     const detected = detectFilenameDate('20140117_205643000_iOS.jpg');
-    expect(detected?.date).toBe('2014-01-17T20:56:43');
+    expect(detected?.date).toBe('2014-01-17T20:56:43Z');
     expect(detected?.source).toBe('filename');
   });
 
   it('should detect date from IMG_20140117_205643.jpg', () => {
     const detected = detectFilenameDate('IMG_20140117_205643.jpg');
-    expect(detected?.date).toBe('2014-01-17T20:56:43');
+    expect(detected?.date).toBe('2014-01-17T20:56:43Z');
   });
 
   it('should detect date from VID_20180314_143210.mp4', () => {
     const detected = detectFilenameDate('VID_20180314_143210.mp4');
-    expect(detected?.date).toBe('2018-03-14T14:32:10');
+    expect(detected?.date).toBe('2018-03-14T14:32:10Z');
   });
 
   it('should detect date from 2014-01-17 20.56.43.jpg', () => {
     const detected = detectFilenameDate('2014-01-17 20.56.43.jpg');
-    expect(detected?.date).toBe('2014-01-17T20:56:43');
+    expect(detected?.date).toBe('2014-01-17T20:56:43Z');
   });
 
   it('should detect date from WhatsApp Image 2019-05-03 at 14.22.10.jpeg', () => {
     const detected = detectFilenameDate('WhatsApp Image 2019-05-03 at 14.22.10.jpeg');
-    expect(detected?.date).toBe('2019-05-03T14:22:10');
+    expect(detected?.date).toBe('2019-05-03T14:22:10Z');
   });
 
   it('should detect date from PXL_20211225_123456789.jpg', () => {
     const detected = detectFilenameDate('PXL_20211225_123456789.jpg');
-    expect(detected?.date).toBe('2021-12-25T12:34:56');
+    expect(detected?.date).toBe('2021-12-25T12:34:56Z');
   });
 
   it('should handle ambiguous date 070320080823.mp4 as DDMMYYYY', () => {
     const detected = detectFilenameDate('070320080823.mp4');
-    expect(detected?.date).toBe('2008-03-07T08:23:00');
+    expect(detected?.date).toBe('2008-03-07T08:23:00Z');
   });
 
   it('should detect date from WhatsApp Video filenames', () => {
     const detected = detectFilenameDate('WhatsApp Video 2020-11-05 at 21.10.09.mp4');
-    expect(detected?.date).toBe('2020-11-05T21:10:09');
+    expect(detected?.date).toBe('2020-11-05T21:10:09Z');
   });
 
   it('should detect compact YYYYMMDDHHMMSS filenames', () => {
     const detected = detectFilenameDate('20220506112233.avi');
-    expect(detected?.date).toBe('2022-05-06T11:22:33');
+    expect(detected?.date).toBe('2022-05-06T11:22:33Z');
+  });
+
+  it('should detect MVI compact camera filenames', () => {
+    const detected = detectFilenameDate('MVI_20250411191428.mov');
+    expect(detected?.date).toBe('2025-04-11T19:14:28Z');
   });
 
   it('should detect WhatsApp exported IMG filenames', () => {
     const detected = detectFilenameDate('IMG-20181231-WA0007.jpg');
-    expect(detected?.date).toBe('2018-12-31T00:00:00');
+    expect(detected?.date).toBe('2018-12-31T00:00:00Z');
   });
 
   it('should detect Signal filenames', () => {
     const detected = detectFilenameDate('Signal-2020-04-05-213045.mp4');
-    expect(detected?.date).toBe('2020-04-05T21:30:45');
+    expect(detected?.date).toBe('2020-04-05T21:30:45Z');
   });
 
   it('should detect date-only ISO-style filenames', () => {
     const detected = detectFilenameDate('1999-12-31.jpeg');
-    expect(detected?.date).toBe('1999-12-31T00:00:00');
+    expect(detected?.date).toBe('1999-12-31T00:00:00Z');
   });
 });
