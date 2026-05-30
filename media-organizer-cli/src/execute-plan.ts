@@ -215,19 +215,16 @@ async function executePlan(plan: PlanItem[], options: Options) {
           }
           
           if (destFileExists) {
-            if (options.noOverwrite) {
-              logger.info(`Skipping existing destination (--no-overwrite): ${destPath}`);
-              logData.status = 'skipped-overwrite';
-              skippedCopies++;
-              continue;
-            }
-            
             const destHash = await hashFile(destPath);
             if (sourceHash === destHash) {
               logger.info(`Destination file already exists with same hash: ${destPath}`);
               logData.status = 'already-present';
               skippedCopies++;
               continue;
+            }
+
+            if (options.noOverwrite) {
+              throw new Error(`Destination exists with different contents and --no-overwrite is enabled: ${destPath}`);
             }
           }
 

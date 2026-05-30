@@ -35,6 +35,12 @@ To copy the files as specified in the plan, add the `--execute` flag. It is high
 node dist/execute-plan.js --plan ./media-organizer-plan.json --execute --verify --concurrency 6 --resume --source-root "C:\Users\bassa\Pictures\media" --dest-root "C:\Users\bassa\Pictures\sorted media"
 ```
 
+The CLI preserves file timestamps after each successful copy:
+- File contents are copied byte-for-byte.
+- `Date modified` and access time are restored from the source file.
+- On Windows, `Date created` is also restored from the source file.
+- With `--verify`, the destination hash must match the source hash after copying.
+
 ## Safety
 
 The CLI never deletes files from the source. All operations are copy-only. 
@@ -42,6 +48,7 @@ The CLI never deletes files from the source. All operations are copy-only.
 The CLI is designed to be safe by default:
 - It will only read files and log intended actions unless `--execute` is specified.
 - It will not overwrite existing files at the destination unless you remove the default `--no-overwrite` behavior (not currently possible as it's hardcoded to true).
+- If a destination path already exists, the CLI hashes it. Matching contents are marked already present; different contents are treated as an error instead of being silently skipped.
 - It validates that destination paths do not point to locations outside of the specified `--dest-root`, preventing path traversal attacks.
 
 ### Options
